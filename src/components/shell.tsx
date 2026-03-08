@@ -4,8 +4,10 @@ import { type ReactNode, useState, useEffect, useCallback } from 'react';
 import { TopNav } from './top-nav';
 import { SectionTabs } from './section-tabs';
 import { BottomNav } from './bottom-nav';
+import { AppSidebar } from './app-sidebar';
 import { CommandPalette } from './command-palette';
 import { useTheme } from './theme-provider';
+import { useMediaQuery } from '@/hooks/use-media-query';
 
 type Tab = {
   key: string;
@@ -33,6 +35,7 @@ export function Shell({
 }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const { toggle: toggleTheme } = useTheme();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const handleGlobalKey = useCallback(
     (e: KeyboardEvent) => {
@@ -68,6 +71,26 @@ export function Shell({
     return () => window.removeEventListener('keydown', handleGlobalKey);
   }, [handleGlobalKey]);
 
+  // Desktop layout: sidebar + content, no top nav / tabs / bottom nav
+  if (isDesktop) {
+    return (
+      <>
+        <div style={{ display: 'flex', minHeight: '100vh' }}>
+          <AppSidebar />
+          <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
+        </div>
+        {paletteOpen && (
+          <CommandPalette
+            onClose={() => setPaletteOpen(false)}
+            onNewContact={onAdd}
+            onToggleTheme={toggleTheme}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Mobile layout: top nav + section tabs + bottom nav (unchanged)
   return (
     <>
       <TopNav onAdd={onAdd} />
