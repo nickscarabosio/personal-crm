@@ -15,6 +15,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
+import { useProfile } from '@/hooks/use-profile';
 
 type NavItem = {
   key: string;
@@ -55,6 +56,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggle: toggleTheme } = useTheme();
+  const { profile } = useProfile();
 
   const [collapsed, setCollapsed] = useState(false);
   const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({
@@ -316,7 +318,7 @@ export function AppSidebar() {
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                background: '#3f3f46',
+                background: profile.avatarUrl ? 'transparent' : '#3f3f46',
                 color: '#fafafa',
                 display: 'flex',
                 alignItems: 'center',
@@ -326,9 +328,14 @@ export function AppSidebar() {
                 flexShrink: 0,
                 border: 'none',
                 cursor: 'pointer',
+                overflow: 'hidden',
               }}
             >
-              NK
+              {profile.avatarUrl ? (
+                <img src={profile.avatarUrl} alt="" style={{ width: 28, height: 28, objectFit: 'cover' }} />
+              ) : (
+                profile.initials
+              )}
             </button>
           </div>
         )}

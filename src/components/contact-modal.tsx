@@ -90,6 +90,8 @@ export function ContactModal({ contact, onClose }: Props) {
       source: form.source || null,
       notes: form.notes || null,
       follow_up_date: form.follow_up_date || null,
+      goal: null,
+      goal_target_date: null,
       last_contacted_at: null,
     };
 

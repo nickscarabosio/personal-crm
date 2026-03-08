@@ -3,6 +3,7 @@
 import { Sun, Moon, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from './theme-provider';
+import { useProfile } from '@/hooks/use-profile';
 
 type Props = {
   onAdd?: () => void;
@@ -11,6 +12,7 @@ type Props = {
 export function TopNav({ onAdd }: Props) {
   const { theme, toggle } = useTheme();
   const router = useRouter();
+  const { profile } = useProfile();
 
   return (
     <header
@@ -53,17 +55,21 @@ export function TopNav({ onAdd }: Props) {
         )}
         <button
           onClick={() => router.push('/settings')}
-          className="flex items-center justify-center rounded-full text-[11px] font-medium"
+          className="flex items-center justify-center rounded-full text-[11px] font-medium overflow-hidden"
           style={{
             width: 28,
             height: 28,
-            background: '#3f3f46',
+            background: profile.avatarUrl ? 'transparent' : '#3f3f46',
             color: '#fafafa',
             border: 'none',
             cursor: 'pointer',
           }}
         >
-          NK
+          {profile.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="" style={{ width: 28, height: 28, objectFit: 'cover' }} />
+          ) : (
+            profile.initials
+          )}
         </button>
       </div>
     </header>

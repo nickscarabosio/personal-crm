@@ -45,6 +45,8 @@ export type Contact = {
   notes: string | null;
   last_contacted_at: string | null;
   follow_up_date: string | null;
+  goal: string | null;
+  goal_target_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -109,3 +111,20 @@ export type InteractionInsert = Omit<Interaction, 'id' | 'created_at'> & {
 };
 
 export type InteractionUpdate = Partial<InteractionInsert>;
+
+export type Milestone = {
+  id: string;
+  contact_id: string;
+  title: string;
+  target_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type MilestoneInsert = Omit<Milestone, 'id' | 'created_at' | 'completed_at'> & {
+  id?: string;
+};
+
+export type MilestoneUpdate = Partial<MilestoneInsert>;

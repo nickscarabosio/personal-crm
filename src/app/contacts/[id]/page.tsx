@@ -21,6 +21,7 @@ import { useContact, useContacts, useUpdateContact } from '@/hooks/use-contacts'
 import { useInteractions, useCreateInteraction } from '@/hooks/use-interactions';
 import { useInteractionCounts } from '@/hooks/use-interaction-counts';
 import { calculateWarmthScore, getScoreColor, getScoreLabel } from '@/lib/scoring';
+import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone } from '@/hooks/use-milestones';
 import type { Interaction, ContactInsert } from '@/types/database';
 
 const AVATAR_COLORS = ['#3f3f46', '#52525b', '#71717a', '#27272a', '#18181b'];
@@ -78,6 +79,10 @@ export default function ContactProfile() {
   const updateContact = useUpdateContact();
   const createInteraction = useCreateInteraction();
   const { data: interactionCounts } = useInteractionCounts();
+  const { data: milestones } = useMilestones(id);
+  const createMilestone = useCreateMilestone();
+  const updateMilestone = useUpdateMilestone();
+  const deleteMilestone = useDeleteMilestone();
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
@@ -86,6 +91,13 @@ export default function ContactProfile() {
   const [logType, setLogType] = useState<string>('Note');
   const [logText, setLogText] = useState('');
   const [logOutcome, setLogOutcome] = useState('');
+
+  // Goal state
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalValue, setGoalValue] = useState('');
+  const [goalDateValue, setGoalDateValue] = useState('');
+  const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
+  const [newMilestoneDate, setNewMilestoneDate] = useState('');
 
   // Inline notes editing
   const [editingNotes, setEditingNotes] = useState(false);
@@ -97,6 +109,8 @@ export default function ContactProfile() {
   useEffect(() => {
     if (contact) {
       setNotesValue(contact.notes || '');
+      setGoalValue(contact.goal || '');
+      setGoalDateValue(contact.goal_target_date || '');
     }
   }, [contact]);
 
@@ -561,39 +575,7 @@ export default function ContactProfile() {
                   resize: 'none',
                 }}
               />
-              {logOutcome !== null && logOutcome !== undefined && logOutcome !== '' ? (
-                <input
-                  value={logOutcome}
-                  onChange={(e) => setLogOutcome(e.target.value)}
-                  placeholder="e.g. Positive, Scheduled demo, Closed deal..."
-                  style={{
-                    width: '100%',
-                    height: 28,
-                    background: 'var(--bg-subtle)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 4,
-                    padding: '0 8px',
-                    fontSize: 12,
-                    color: 'var(--fg)',
-                    marginTop: 6,
-                  }}
-                />
-              ) : null}
-              <div className="flex items-center justify-between mt-2">
-                <button
-                  onClick={() => setLogOutcome(logOutcome ? '' : 'positive')}
-                  className="text-[11px] font-medium"
-                  style={{
-                    height: 24,
-                    padding: '0 8px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 4,
-                    background: logOutcome ? 'var(--bg-muted)' : 'transparent',
-                    color: 'var(--fg-muted)',
-                  }}
-                >
-                  {logOutcome ? 'Clear outcome' : 'Set outcome'}
-                </button>
+              <div className="flex items-center justify-end mt-2">
                 <button
                   onClick={handleLog}
                   disabled={!logText.trim() || createInteraction.isPending}
@@ -638,6 +620,272 @@ export default function ContactProfile() {
                     color: 'var(--fg)',
                   }}
                 />
+              </div>
+
+              {/* Goal & Milestones */}
+              <div>
+                <div style={fieldLabelStyle}>Goal</div>
+                {editingGoal ? (
+                  <div className="space-y-2">
+                    <input
+                      value={goalValue}
+                      onChange={(e) => setGoalValue(e.target.value)}
+                      placeholder="e.g. Make them a client"
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        height: 30,
+                        background: 'var(--bg-subtle)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 6,
+                        padding: '0 8px',
+                        fontSize: 12,
+                        color: 'var(--fg)',
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--fg-faint)', marginBottom: 2 }}>Target date</div>
+                      <input
+                        type="date"
+                        value={goalDateValue}
+                        onChange={(e) => setGoalDateValue(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: 30,
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 6,
+                          padding: '0 8px',
+                          fontSize: 12,
+                          color: 'var(--fg)',
+                        }}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          await updateContact.mutateAsync({
+                            id: contact.id,
+                            contact: {
+                              goal: goalValue || null,
+                              goal_target_date: goalDateValue || null,
+                            },
+                          });
+                          setEditingGoal(false);
+                        }}
+                        style={{
+                          height: 26,
+                          padding: '0 10px',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          borderRadius: 4,
+                          border: 'none',
+                          background: 'var(--fg)',
+                          color: 'var(--bg)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setGoalValue(contact.goal || '');
+                          setGoalDateValue(contact.goal_target_date || '');
+                          setEditingGoal(false);
+                        }}
+                        style={{
+                          height: 26,
+                          padding: '0 10px',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          borderRadius: 4,
+                          border: '1px solid var(--border-med)',
+                          background: 'var(--bg)',
+                          color: 'var(--fg)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setEditingGoal(true)}
+                    className="cursor-pointer rounded"
+                    style={{ padding: '2px 0' }}
+                  >
+                    {contact.goal ? (
+                      <div>
+                        <div className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
+                          {contact.goal}
+                        </div>
+                        {contact.goal_target_date && (
+                          <div className="text-[11px] mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                            Target: {format(new Date(contact.goal_target_date + 'T00:00:00'), 'MMM d, yyyy')}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--fg-faint)', fontStyle: 'italic', fontSize: 12 }}>
+                        Click to set a goal...
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Milestones */}
+              <div>
+                <div style={fieldLabelStyle}>Milestones</div>
+                <div className="space-y-1.5">
+                  {(milestones || []).map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-start gap-2"
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: m.completed ? 'var(--bg-subtle)' : 'var(--bg)',
+                      }}
+                    >
+                      <button
+                        onClick={async () => {
+                          await updateMilestone.mutateAsync({
+                            id: m.id,
+                            contactId: id,
+                            update: {
+                              completed: !m.completed,
+                              completed_at: !m.completed ? new Date().toISOString() : null,
+                            },
+                          });
+                        }}
+                        style={{
+                          width: 16,
+                          height: 16,
+                          marginTop: 1,
+                          borderRadius: 4,
+                          border: m.completed ? 'none' : '1.5px solid var(--border-med)',
+                          background: m.completed ? '#22c55e' : 'transparent',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          color: '#fff',
+                          fontSize: 10,
+                        }}
+                      >
+                        {m.completed && '✓'}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className="text-[12px]"
+                          style={{
+                            color: m.completed ? 'var(--fg-muted)' : 'var(--fg)',
+                            textDecoration: m.completed ? 'line-through' : 'none',
+                          }}
+                        >
+                          {m.title}
+                        </div>
+                        {m.target_date && (
+                          <div className="text-[10px]" style={{ color: 'var(--fg-faint)' }}>
+                            {format(new Date(m.target_date + 'T00:00:00'), 'MMM d')}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await deleteMilestone.mutateAsync({ id: m.id, contactId: id });
+                        }}
+                        style={{
+                          width: 16,
+                          height: 16,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: 'none',
+                          background: 'none',
+                          color: 'var(--fg-faint)',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          flexShrink: 0,
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {/* Add milestone */}
+                <div className="flex gap-1.5 mt-2">
+                  <input
+                    value={newMilestoneTitle}
+                    onChange={(e) => setNewMilestoneTitle(e.target.value)}
+                    placeholder="Add milestone..."
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && newMilestoneTitle.trim()) {
+                        await createMilestone.mutateAsync({
+                          contact_id: id,
+                          title: newMilestoneTitle.trim(),
+                          target_date: newMilestoneDate || null,
+                          completed: false,
+                          sort_order: (milestones?.length || 0),
+                        });
+                        setNewMilestoneTitle('');
+                        setNewMilestoneDate('');
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      height: 28,
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      padding: '0 8px',
+                      fontSize: 12,
+                      color: 'var(--fg)',
+                    }}
+                  />
+                  <input
+                    type="date"
+                    value={newMilestoneDate}
+                    onChange={(e) => setNewMilestoneDate(e.target.value)}
+                    title="Target date"
+                    style={{
+                      width: 36,
+                      height: 28,
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      padding: '0 4px',
+                      fontSize: 11,
+                      color: 'var(--fg)',
+                    }}
+                  />
+                </div>
+                {milestones && milestones.length > 0 && (
+                  <div className="mt-1.5">
+                    <div
+                      className="rounded-full overflow-hidden"
+                      style={{ width: '100%', height: 4, background: 'var(--bg-muted2)' }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.round((milestones.filter((m) => m.completed).length / milestones.length) * 100)}%`,
+                          background: '#22c55e',
+                          transition: 'width 200ms',
+                        }}
+                      />
+                    </div>
+                    <div className="text-[10px] mt-0.5" style={{ color: 'var(--fg-faint)' }}>
+                      {milestones.filter((m) => m.completed).length}/{milestones.length} completed
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Relationship status */}
