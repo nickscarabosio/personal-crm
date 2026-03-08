@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, ChevronDown, Trash2, CalendarDays, MessageSquare, Tag, Activity, Clock } from 'lucide-react';
 import { Check } from 'lucide-react';
 import type { Tag as TagType } from '@/types/database';
@@ -24,18 +24,6 @@ const STATUS_OPTIONS: { value: string; label: string; dot: string }[] = [
   { value: 'dormant', label: 'Dormant', dot: '#a1a1aa' },
   { value: 'closed', label: 'Closed', dot: '#ef4444' },
 ];
-
-function useClickOutside(ref: React.RefObject<HTMLDivElement | null>, onClose: () => void) {
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [ref, onClose]);
-}
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
@@ -87,12 +75,39 @@ function DropdownButton({
   onToggle: () => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, onClose);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Close on outside click (check both trigger and dropdown)
+  useEffect(() => {
+    if (!isOpen) return;
+    function handle(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        wrapRef.current && !wrapRef.current.contains(target) &&
+        dropRef.current && !dropRef.current.contains(target)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [isOpen, onClose]);
+
+  // Calculate position when opened
+  useEffect(() => {
+    if (isOpen && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [isOpen]);
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
       <button
+        ref={btnRef}
         onClick={onToggle}
         style={{
           height: 30,
@@ -114,24 +129,153 @@ function DropdownButton({
         {label}
         <ChevronDown size={11} />
       </button>
-      {isOpen && (
+      {isOpen && pos && (
         <div
+          ref={dropRef}
           style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            marginTop: 4,
+            position: 'fixed',
+            top: pos.top,
+            left: pos.left,
             background: 'var(--bg)',
             border: '1px solid var(--border)',
             borderRadius: 8,
-            boxShadow: 'var(--shadow)',
-            zIndex: 100,
+            boxShadow: '0 4px 16px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.06)',
+            zIndex: 9999,
             minWidth: 180,
-            maxHeight: 240,
+            maxHeight: 280,
             overflowY: 'auto',
           }}
         >
           {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoteButton({
+  noteOpen,
+  onToggle,
+  onClose,
+  count,
+  noteText,
+  setNoteText,
+  handleAddNote,
+}: {
+  noteOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  count: number;
+  noteText: string;
+  setNoteText: (v: string) => void;
+  handleAddNote: () => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!noteOpen) return;
+    function handle(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        wrapRef.current && !wrapRef.current.contains(target) &&
+        dropRef.current && !dropRef.current.contains(target)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [noteOpen, onClose]);
+
+  useEffect(() => {
+    if (noteOpen && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [noteOpen]);
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <button
+        ref={btnRef}
+        onClick={onToggle}
+        style={{
+          height: 30,
+          padding: '0 10px',
+          fontSize: 12,
+          fontWeight: 500,
+          borderRadius: 6,
+          border: '1px solid var(--border-med)',
+          background: 'var(--bg)',
+          color: 'var(--fg)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <MessageSquare size={12} />
+        Note
+      </button>
+      {noteOpen && pos && (
+        <div
+          ref={dropRef}
+          style={{
+            position: 'fixed',
+            top: pos.top,
+            left: pos.left,
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: '0 4px 16px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.06)',
+            zIndex: 9999,
+            width: 240,
+            padding: 8,
+          }}
+        >
+          <label style={{ fontSize: 10, fontWeight: 500, color: 'var(--fg-muted)', display: 'block', marginBottom: 4 }}>
+            Add note to {count} contact{count !== 1 ? 's' : ''}
+          </label>
+          <textarea
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Type a note..."
+            rows={3}
+            autoFocus
+            style={{
+              width: '100%',
+              fontSize: 13,
+              padding: 8,
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--bg)',
+              color: 'var(--fg)',
+              resize: 'vertical',
+              fontFamily: 'inherit',
+            }}
+          />
+          <button
+            onClick={handleAddNote}
+            disabled={!noteText.trim()}
+            style={{
+              width: '100%',
+              height: 28,
+              fontSize: 12,
+              fontWeight: 500,
+              borderRadius: 4,
+              border: 'none',
+              background: noteText.trim() ? 'var(--fg)' : 'var(--bg-muted2)',
+              color: noteText.trim() ? 'var(--bg)' : 'var(--fg-faint)',
+              cursor: noteText.trim() ? 'pointer' : 'default',
+              marginTop: 6,
+            }}
+          >
+            Add Note
+          </button>
         </div>
       )}
     </div>
@@ -146,7 +290,6 @@ export function BulkActionBar({ selectedIds, tags, onClearSelection }: BulkActio
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const noteRef = useRef<HTMLDivElement>(null);
 
   const bulkUpdate = useBulkUpdateContacts();
   const bulkAddTags = useBulkAddTags();
@@ -155,11 +298,6 @@ export function BulkActionBar({ selectedIds, tags, onClearSelection }: BulkActio
   const deleteContact = useDeleteContact();
 
   const count = selectedIds.length;
-
-  useClickOutside(noteRef, useCallback(() => {
-    setNoteOpen(false);
-    setNoteText('');
-  }, []));
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -516,86 +654,19 @@ export function BulkActionBar({ selectedIds, tags, onClearSelection }: BulkActio
           </div>
         </DropdownButton>
 
-        {/* Add Note */}
-        <div ref={noteRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setNoteOpen(!noteOpen); setOpenDropdown(null); }}
-            style={{
-              height: 30,
-              padding: '0 10px',
-              fontSize: 12,
-              fontWeight: 500,
-              borderRadius: 6,
-              border: '1px solid var(--border-med)',
-              background: 'var(--bg)',
-              color: 'var(--fg)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <MessageSquare size={12} />
-            Note
-          </button>
-          {noteOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                marginTop: 4,
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                boxShadow: 'var(--shadow)',
-                zIndex: 100,
-                width: 260,
-                padding: 8,
-              }}
-            >
-              <label style={{ fontSize: 10, fontWeight: 500, color: 'var(--fg-muted)', display: 'block', marginBottom: 4 }}>
-                Add note to {count} contact{count !== 1 ? 's' : ''}
-              </label>
-              <textarea
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Type a note..."
-                rows={3}
-                style={{
-                  width: '100%',
-                  fontSize: 13,
-                  padding: 8,
-                  borderRadius: 4,
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg)',
-                  color: 'var(--fg)',
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                }}
-              />
-              <button
-                onClick={handleAddNote}
-                disabled={!noteText.trim()}
-                style={{
-                  width: '100%',
-                  height: 28,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  borderRadius: 4,
-                  border: 'none',
-                  background: noteText.trim() ? 'var(--fg)' : 'var(--bg-muted2)',
-                  color: noteText.trim() ? 'var(--bg)' : 'var(--fg-faint)',
-                  cursor: noteText.trim() ? 'pointer' : 'default',
-                  marginTop: 6,
-                }}
-              >
-                Add Note
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Add Note - uses position:fixed to avoid clipping */}
+        <NoteButton
+          noteOpen={noteOpen}
+          onToggle={() => {
+            setNoteOpen((v) => !v);
+            setOpenDropdown(null);
+          }}
+          onClose={() => { setNoteOpen(false); setNoteText(''); }}
+          count={count}
+          noteText={noteText}
+          setNoteText={setNoteText}
+          handleAddNote={handleAddNote}
+        />
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />

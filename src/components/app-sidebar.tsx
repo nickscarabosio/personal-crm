@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Sun,
   Moon,
+  LogOut,
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
 
@@ -287,22 +288,45 @@ export function AppSidebar() {
           {theme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
         {!collapsed && (
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: '#3f3f46',
-              color: '#fafafa',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 500,
-              flexShrink: 0,
-            }}
-          >
-            NK
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={async () => {
+                await fetch('/api/auth', { method: 'DELETE' });
+                window.location.href = '/login';
+              }}
+              title="Sign out"
+              style={{
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 6,
+                border: 'none',
+                background: 'none',
+                color: 'var(--fg-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <LogOut size={14} />
+            </button>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: '#3f3f46',
+                color: '#fafafa',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 500,
+                flexShrink: 0,
+              }}
+            >
+              NK
+            </div>
           </div>
         )}
       </div>
