@@ -134,7 +134,7 @@ export default function ContactProfile() {
   const followUpCount = useMemo(() => {
     if (!allContacts) return 0;
     return allContacts.filter(
-      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date + "T00:00:00")) || isToday(new Date(c.follow_up_date + "T00:00:00")))
     ).length;
   }, [allContacts]);
 
@@ -348,9 +348,9 @@ export default function ContactProfile() {
                         width: 6,
                         height: 6,
                         background:
-                          isPast(new Date(contact.follow_up_date)) && !isToday(new Date(contact.follow_up_date))
+                          isPast(new Date(contact.follow_up_date + "T00:00:00")) && !isToday(new Date(contact.follow_up_date + "T00:00:00"))
                             ? '#ef4444'
-                            : isToday(new Date(contact.follow_up_date))
+                            : isToday(new Date(contact.follow_up_date + "T00:00:00"))
                             ? '#ca8a04'
                             : '#22c55e',
                       }}
@@ -358,7 +358,7 @@ export default function ContactProfile() {
                   )}
                   <span style={fieldValueStyle}>
                     {contact.follow_up_date
-                      ? format(new Date(contact.follow_up_date), 'MMM d, yyyy')
+                      ? format(new Date(contact.follow_up_date + 'T00:00:00'), 'MMM d, yyyy')
                       : '--'}
                   </span>
                 </div>

@@ -29,7 +29,7 @@ export default function FollowUps() {
   const followUpCount = useMemo(() => {
     if (!allContacts) return 0;
     return allContacts.filter(
-      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date + "T00:00:00")) || isToday(new Date(c.follow_up_date + "T00:00:00")))
     ).length;
   }, [allContacts]);
 
@@ -38,8 +38,8 @@ export default function FollowUps() {
       contacts?.filter(
         (c) =>
           c.follow_up_date &&
-          isPast(new Date(c.follow_up_date)) &&
-          !isToday(new Date(c.follow_up_date)) &&
+          isPast(new Date(c.follow_up_date + "T00:00:00")) &&
+          !isToday(new Date(c.follow_up_date + "T00:00:00")) &&
           !dismissed.has(c.id)
       ) || [],
     [contacts, dismissed]
@@ -49,7 +49,7 @@ export default function FollowUps() {
       contacts?.filter(
         (c) =>
           c.follow_up_date &&
-          isToday(new Date(c.follow_up_date)) &&
+          isToday(new Date(c.follow_up_date + "T00:00:00")) &&
           !dismissed.has(c.id)
       ) || [],
     [contacts, dismissed]
@@ -59,8 +59,8 @@ export default function FollowUps() {
       contacts?.filter(
         (c) =>
           c.follow_up_date &&
-          !isPast(new Date(c.follow_up_date)) &&
-          !isToday(new Date(c.follow_up_date)) &&
+          !isPast(new Date(c.follow_up_date + "T00:00:00")) &&
+          !isToday(new Date(c.follow_up_date + "T00:00:00")) &&
           !dismissed.has(c.id)
       ) || [],
     [contacts, dismissed]
@@ -221,11 +221,11 @@ export default function FollowUps() {
     const fullName = `${contact.first_name} ${contact.last_name || ''}`.trim();
     const context = [contact.role, contact.company_name].filter(Boolean).join(' at ');
     const dueDate = contact.follow_up_date
-      ? isPast(new Date(contact.follow_up_date)) && !isToday(new Date(contact.follow_up_date))
-        ? `Overdue - ${format(new Date(contact.follow_up_date), 'MMM d')}`
-        : isToday(new Date(contact.follow_up_date))
+      ? isPast(new Date(contact.follow_up_date + "T00:00:00")) && !isToday(new Date(contact.follow_up_date + "T00:00:00"))
+        ? `Overdue - ${format(new Date(contact.follow_up_date + "T00:00:00"), 'MMM d')}`
+        : isToday(new Date(contact.follow_up_date + "T00:00:00"))
         ? 'Due today'
-        : format(new Date(contact.follow_up_date), 'MMM d')
+        : format(new Date(contact.follow_up_date + "T00:00:00"), 'MMM d')
       : '';
 
     return (

@@ -94,7 +94,7 @@ export default function PeopleBoard() {
   const followUpCount = useMemo(() => {
     if (!allContacts) return 0;
     return allContacts.filter(
-      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date + "T00:00:00")) || isToday(new Date(c.follow_up_date + "T00:00:00")))
     ).length;
   }, [allContacts]);
 

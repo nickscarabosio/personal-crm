@@ -50,7 +50,7 @@ export default function Dashboard() {
   const followUpCount = useMemo(() => {
     if (!allContacts) return 0;
     return allContacts.filter(
-      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date + "T00:00:00")) || isToday(new Date(c.follow_up_date + "T00:00:00")))
     ).length;
   }, [allContacts]);
 
@@ -59,7 +59,7 @@ export default function Dashboard() {
     const total = allContacts.length;
     const active = allContacts.filter((c) => c.status === 'active').length;
     const followUpsDue = allContacts.filter(
-      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date + "T00:00:00")) || isToday(new Date(c.follow_up_date + "T00:00:00")))
     ).length;
     const dormant = allContacts.filter((c) => isDormantRisk(c)).length;
     return { total, active, followUpsDue, dormant };
@@ -70,8 +70,8 @@ export default function Dashboard() {
     return allContacts.filter(
       (c) =>
         c.follow_up_date &&
-        (isToday(new Date(c.follow_up_date)) ||
-          (isPast(new Date(c.follow_up_date)) && !isToday(new Date(c.follow_up_date))))
+        (isToday(new Date(c.follow_up_date + "T00:00:00")) ||
+          (isPast(new Date(c.follow_up_date + "T00:00:00")) && !isToday(new Date(c.follow_up_date + "T00:00:00"))))
     ).slice(0, 5);
   }, [allContacts]);
 
@@ -134,7 +134,7 @@ export default function Dashboard() {
             <div className="space-y-2">
               {dueToday.map((c) => {
                 const fullName = `${c.first_name} ${c.last_name || ''}`.trim();
-                const isOverdue = c.follow_up_date && isPast(new Date(c.follow_up_date)) && !isToday(new Date(c.follow_up_date));
+                const isOverdue = c.follow_up_date && isPast(new Date(c.follow_up_date + "T00:00:00")) && !isToday(new Date(c.follow_up_date + "T00:00:00"));
                 return (
                   <div
                     key={c.id}
@@ -170,7 +170,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-[11px] shrink-0" style={{ color: isOverdue ? '#ef4444' : '#ca8a04' }}>
                       {isOverdue
-                        ? `Overdue - ${format(new Date(c.follow_up_date!), 'MMM d')}`
+                        ? `Overdue - ${format(new Date(c.follow_up_date! + 'T00:00:00'), 'MMM d')}`
                         : 'Due today'}
                     </div>
                   </div>
