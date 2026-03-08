@@ -561,6 +561,24 @@ export default function ContactProfile() {
                   resize: 'none',
                 }}
               />
+              {logOutcome !== null && logOutcome !== undefined && logOutcome !== '' ? (
+                <input
+                  value={logOutcome}
+                  onChange={(e) => setLogOutcome(e.target.value)}
+                  placeholder="e.g. Positive, Scheduled demo, Closed deal..."
+                  style={{
+                    width: '100%',
+                    height: 28,
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    padding: '0 8px',
+                    fontSize: 12,
+                    color: 'var(--fg)',
+                    marginTop: 6,
+                  }}
+                />
+              ) : null}
               <div className="flex items-center justify-between mt-2">
                 <button
                   onClick={() => setLogOutcome(logOutcome ? '' : 'positive')}
@@ -574,7 +592,7 @@ export default function ContactProfile() {
                     color: 'var(--fg-muted)',
                   }}
                 >
-                  Set outcome
+                  {logOutcome ? 'Clear outcome' : 'Set outcome'}
                 </button>
                 <button
                   onClick={handleLog}

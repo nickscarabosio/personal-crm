@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useCreateContact, useUpdateContact } from '@/hooks/use-contacts';
-import { useTags } from '@/hooks/use-tags';
+import { useTags, useCreateTag } from '@/hooks/use-tags';
 import type { ContactWithTags, ContactInsert } from '@/types/database';
 
 const STATUS_OPTIONS = ['lead', 'active', 'dormant', 'closed'] as const;
@@ -39,6 +39,7 @@ export function ContactModal({ contact, onClose }: Props) {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const { data: allTags } = useTags();
+  const createTag = useCreateTag();
 
   const [form, setForm] = useState({
     first_name: '',
@@ -54,6 +55,7 @@ export function ContactModal({ contact, onClose }: Props) {
     follow_up_date: '',
   });
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [newTagLabel, setNewTagLabel] = useState('');
 
   useEffect(() => {
     if (contact) {
@@ -245,32 +247,68 @@ export function ContactModal({ contact, onClose }: Props) {
             </div>
           </div>
 
-          {allTags && allTags.length > 0 && (
-            <div>
-              <label style={labelStyle}>Tags</label>
-              <div className="flex flex-wrap gap-1.5">
-                {allTags.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id)}
-                    className="rounded-full"
-                    style={{
-                      height: 19,
-                      padding: '0 8px',
-                      fontSize: 10,
-                      fontWeight: 500,
-                      border: '1px solid var(--border)',
-                      background: selectedTags.includes(tag.id) ? 'var(--bg-muted2)' : 'var(--bg-muted)',
-                      color: selectedTags.includes(tag.id) ? 'var(--fg)' : 'var(--fg-muted)',
-                    }}
-                  >
-                    {tag.label}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <label style={labelStyle}>Tags</label>
+            <div className="flex flex-wrap gap-1.5">
+              {(allTags || []).map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
+                  className="rounded-full"
+                  style={{
+                    height: 19,
+                    padding: '0 8px',
+                    fontSize: 10,
+                    fontWeight: 500,
+                    border: '1px solid var(--border)',
+                    background: selectedTags.includes(tag.id) ? 'var(--bg-muted2)' : 'var(--bg-muted)',
+                    color: selectedTags.includes(tag.id) ? 'var(--fg)' : 'var(--fg-muted)',
+                  }}
+                >
+                  {tag.label}
+                </button>
+              ))}
             </div>
-          )}
+            <div className="flex gap-1.5 mt-2">
+              <input
+                type="text"
+                value={newTagLabel}
+                onChange={(e) => setNewTagLabel(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter' && newTagLabel.trim()) {
+                    e.preventDefault();
+                    const tag = await createTag.mutateAsync({ label: newTagLabel.trim(), color: '#a1a1aa' });
+                    setSelectedTags((prev) => [...prev, tag.id]);
+                    setNewTagLabel('');
+                  }
+                }}
+                placeholder="New tag name..."
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                disabled={!newTagLabel.trim()}
+                onClick={async () => {
+                  if (!newTagLabel.trim()) return;
+                  const tag = await createTag.mutateAsync({ label: newTagLabel.trim(), color: '#a1a1aa' });
+                  setSelectedTags((prev) => [...prev, tag.id]);
+                  setNewTagLabel('');
+                }}
+                className="rounded text-[11px] font-medium"
+                style={{
+                  height: 32,
+                  padding: '0 10px',
+                  background: newTagLabel.trim() ? 'var(--fg)' : 'var(--bg-muted2)',
+                  color: newTagLabel.trim() ? 'var(--bg)' : 'var(--fg-faint)',
+                  border: 'none',
+                  cursor: newTagLabel.trim() ? 'pointer' : 'default',
+                }}
+              >
+                + Tag
+              </button>
+            </div>
+          </div>
 
           <div>
             <label style={labelStyle}>Notes</label>
