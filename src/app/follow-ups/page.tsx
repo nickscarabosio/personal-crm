@@ -261,9 +261,26 @@ export default function FollowUps() {
               {context}
             </div>
           )}
-          <div className="text-[11px]" style={{ color: 'var(--fg-faint)' }}>
+          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--fg-faint)' }}>
+            {contact.follow_up_type && (
+              <span
+                className="rounded text-[9px] font-medium uppercase"
+                style={{
+                  padding: '1px 5px',
+                  border: '1px solid var(--border)',
+                  color: 'var(--fg-muted)',
+                }}
+              >
+                {contact.follow_up_type}
+              </span>
+            )}
             {dueDate}
           </div>
+          {contact.follow_up_note && (
+            <div className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--fg-muted)', fontStyle: 'italic' }}>
+              {contact.follow_up_note}
+            </div>
+          )}
         </div>
         <div
           className="flex items-center gap-1.5 shrink-0"

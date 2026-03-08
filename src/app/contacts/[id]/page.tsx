@@ -191,11 +191,15 @@ export default function ContactProfile() {
     });
   };
 
-  const handleFollowUpChange = async (date: string) => {
+  const handleFollowUpChange = async (patch: {
+    follow_up_date?: string | null;
+    follow_up_type?: string | null;
+    follow_up_note?: string | null;
+  }) => {
     if (!contact) return;
     await updateContact.mutateAsync({
       id: contact.id,
-      contact: { follow_up_date: date || null },
+      contact: patch,
     });
   };
 
@@ -375,7 +379,24 @@ export default function ContactProfile() {
                       ? format(new Date(contact.follow_up_date + 'T00:00:00'), 'MMM d, yyyy')
                       : '--'}
                   </span>
+                  {contact.follow_up_type && (
+                    <span
+                      className="rounded text-[9px] font-medium uppercase"
+                      style={{
+                        padding: '1px 5px',
+                        border: '1px solid var(--border)',
+                        color: 'var(--fg-muted)',
+                      }}
+                    >
+                      {contact.follow_up_type}
+                    </span>
+                  )}
                 </div>
+                {contact.follow_up_note && (
+                  <div className="text-[11px] mt-0.5" style={{ color: 'var(--fg-muted)', fontStyle: 'italic' }}>
+                    {contact.follow_up_note}
+                  </div>
+                )}
               </div>
               {contact.email && (
                 <div>
@@ -602,13 +623,13 @@ export default function ContactProfile() {
               Actions
             </div>
             <div className="space-y-4">
-              {/* Follow-up date */}
+              {/* Follow-up */}
               <div>
-                <div style={fieldLabelStyle}>Follow-up date</div>
+                <div style={fieldLabelStyle}>Follow-up</div>
                 <input
                   type="date"
                   value={contact.follow_up_date || ''}
-                  onChange={(e) => handleFollowUpChange(e.target.value)}
+                  onChange={(e) => handleFollowUpChange({ follow_up_date: e.target.value || null })}
                   style={{
                     width: '100%',
                     height: 32,
@@ -618,6 +639,45 @@ export default function ContactProfile() {
                     padding: '0 8px',
                     fontSize: 12,
                     color: 'var(--fg)',
+                  }}
+                />
+                {/* Type selector */}
+                <div className="flex gap-1 mt-2">
+                  {(['call', 'email', 'sms', 'other'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => handleFollowUpChange({ follow_up_type: contact.follow_up_type === t ? null : t })}
+                      className="rounded text-[10px] font-medium capitalize"
+                      style={{
+                        height: 24,
+                        padding: '0 8px',
+                        border: '1px solid var(--border)',
+                        background: contact.follow_up_type === t ? 'var(--fg)' : 'transparent',
+                        color: contact.follow_up_type === t ? 'var(--bg)' : 'var(--fg-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {/* Follow-up note */}
+                <textarea
+                  key={contact.id + '-fu-note'}
+                  defaultValue={contact.follow_up_note || ''}
+                  onBlur={(e) => handleFollowUpChange({ follow_up_note: e.target.value || null })}
+                  placeholder="Follow-up note..."
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                    fontSize: 12,
+                    color: 'var(--fg)',
+                    resize: 'none',
+                    marginTop: 6,
                   }}
                 />
               </div>

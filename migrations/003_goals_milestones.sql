@@ -2,6 +2,10 @@
 alter table contacts add column if not exists goal text;
 alter table contacts add column if not exists goal_target_date date;
 
+-- Add follow-up type and note to contacts
+alter table contacts add column if not exists follow_up_type text;
+alter table contacts add column if not exists follow_up_note text;
+
 -- Create milestones table
 create table if not exists milestones (
   id uuid primary key default gen_random_uuid(),

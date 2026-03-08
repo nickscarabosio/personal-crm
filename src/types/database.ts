@@ -45,16 +45,22 @@ export type Contact = {
   notes: string | null;
   last_contacted_at: string | null;
   follow_up_date: string | null;
+  follow_up_type: string | null;
+  follow_up_note: string | null;
   goal: string | null;
   goal_target_date: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ContactInsert = Omit<Contact, 'id' | 'created_at' | 'updated_at'> & {
+export type ContactInsert = Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'goal' | 'goal_target_date' | 'follow_up_type' | 'follow_up_note'> & {
   id?: string;
   created_at?: string;
   updated_at?: string;
+  goal?: string | null;
+  goal_target_date?: string | null;
+  follow_up_type?: string | null;
+  follow_up_note?: string | null;
 };
 
 export type ContactUpdate = Partial<ContactInsert>;
