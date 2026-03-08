@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow, format, isPast, isToday } from 'date-fns';
-import { Search, Pencil, Mail, Download, Upload, Check, Trash2 } from 'lucide-react';
+import { Search, Pencil, Mail, Download, Upload, Check } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Shell } from '@/components/shell';
 import { ContactModal } from '@/components/contact-modal';
@@ -11,7 +11,8 @@ import { CSVImportModal } from '@/components/csv-import-modal';
 import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
 import { DataTableViewOptions } from '@/components/ui/data-table-view-options';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
-import { useContacts, useDeleteContact } from '@/hooks/use-contacts';
+import { useContacts } from '@/hooks/use-contacts';
+import { BulkActionBar } from '@/components/bulk-action-bar';
 import { useTags } from '@/hooks/use-tags';
 import type { ContactWithTags } from '@/types/database';
 import { isDormantRisk } from '@/lib/dormancy';
@@ -87,7 +88,6 @@ export default function PeopleBoard() {
 
   const { data: contacts, isLoading } = useContacts({ search, status: statusFilter });
   const { data: tags } = useTags();
-  const deleteContact = useDeleteContact();
   const { data: interactionCounts } = useInteractionCounts();
 
   const { data: allContacts } = useContacts({});
@@ -331,15 +331,9 @@ export default function PeopleBoard() {
     initialState: { pagination: { pageSize: 25 } },
   });
 
-  const selectedCount = table.getFilteredSelectedRowModel().rows.length;
-
-  const handleBulkDelete = async () => {
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
-    for (const row of selectedRows) {
-      await deleteContact.mutateAsync(row.original.id);
-    }
-    setRowSelection({});
-  };
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const selectedCount = selectedRows.length;
+  const selectedIds = selectedRows.map((row) => row.original.id);
 
   return (
     <Shell
@@ -403,29 +397,11 @@ export default function PeopleBoard() {
 
         {/* Bulk action bar */}
         {selectedCount > 0 && (
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '8px 12px', marginBottom: 8,
-              background: 'var(--bg-muted)', borderRadius: 8,
-              border: '1px solid var(--border)',
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg)' }}>
-              {selectedCount} selected
-            </span>
-            <button
-              onClick={handleBulkDelete}
-              style={{
-                height: 28, padding: '0 10px', fontSize: 12, fontWeight: 500,
-                borderRadius: 6, border: '1px solid var(--border-med)',
-                background: 'var(--bg)', color: '#ef4444', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}
-            >
-              <Trash2 size={12} /> Delete
-            </button>
-          </div>
+          <BulkActionBar
+            selectedIds={selectedIds}
+            tags={tags || []}
+            onClearSelection={() => setRowSelection({})}
+          />
         )}
 
         {/* Desktop Table */}

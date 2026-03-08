@@ -195,3 +195,106 @@ export function useDeleteContact() {
     },
   });
 }
+
+export function useBulkUpdateContacts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      ids,
+      update,
+    }: {
+      ids: string[];
+      update: ContactUpdate;
+    }) => {
+      for (const id of ids) {
+        const { error } = await supabase
+          .from('contacts')
+          .update(update)
+          .eq('id', id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    },
+  });
+}
+
+export function useBulkAddTags() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contactIds,
+      tagIds,
+    }: {
+      contactIds: string[];
+      tagIds: string[];
+    }) => {
+      const rows = contactIds.flatMap((contactId) =>
+        tagIds.map((tagId) => ({ contact_id: contactId, tag_id: tagId }))
+      );
+      if (rows.length > 0) {
+        // Use upsert with ignoreDuplicates to handle existing entries
+        const { error } = await supabase
+          .from('contact_tags')
+          .upsert(rows, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    },
+  });
+}
+
+export function useBulkRemoveTags() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contactIds,
+      tagIds,
+    }: {
+      contactIds: string[];
+      tagIds: string[];
+    }) => {
+      for (const contactId of contactIds) {
+        const { error } = await supabase
+          .from('contact_tags')
+          .delete()
+          .eq('contact_id', contactId)
+          .in('tag_id', tagIds);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    },
+  });
+}
+
+export function useBulkAddNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contactIds,
+      summary,
+    }: {
+      contactIds: string[];
+      summary: string;
+    }) => {
+      const now = new Date().toISOString();
+      const rows = contactIds.map((contactId) => ({
+        contact_id: contactId,
+        type: 'note' as const,
+        date: now,
+        summary,
+      }));
+      const { error } = await supabase.from('interactions').insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      qc.invalidateQueries({ queryKey: ['interactions'] });
+    },
+  });
+}
