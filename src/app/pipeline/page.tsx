@@ -1,12 +1,54 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shell } from '@/components/shell';
 import { useContacts } from '@/hooks/use-contacts';
 import { usePipelineStages, useMoveContactStage } from '@/hooks/use-pipeline';
-import { isPast, isToday } from 'date-fns';
+import { isPast, isToday, format } from 'date-fns';
+import { Settings2 } from 'lucide-react';
 import type { ContactWithTags, PipelineStage } from '@/types/database';
+
+// Card field configuration
+const CARD_FIELDS = [
+  { key: 'role_company', label: 'Role & Company' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'goal', label: 'Goal' },
+  { key: 'goal_target_date', label: 'Goal Target Date' },
+  { key: 'follow_up', label: 'Follow-Up Date' },
+  { key: 'follow_up_type', label: 'Follow-Up Type' },
+  { key: 'follow_up_note', label: 'Follow-Up Note' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'source', label: 'Source' },
+  { key: 'status', label: 'Status' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'last_contacted', label: 'Last Contacted' },
+] as const;
+
+type CardFieldKey = (typeof CARD_FIELDS)[number]['key'];
+
+const DEFAULT_VISIBLE: CardFieldKey[] = ['role_company', 'goal'];
+
+function useCardFields() {
+  const [visible, setVisible] = useState<CardFieldKey[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_VISIBLE;
+    try {
+      const stored = localStorage.getItem('pipeline_card_fields');
+      return stored ? JSON.parse(stored) : DEFAULT_VISIBLE;
+    } catch { return DEFAULT_VISIBLE; }
+  });
+
+  const toggle = useCallback((key: CardFieldKey) => {
+    setVisible((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      localStorage.setItem('pipeline_card_fields', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  return { visible, toggle };
+}
 
 const AVATAR_COLORS = ['#3f3f46', '#52525b', '#71717a', '#27272a', '#18181b'];
 function getAvatarColor(name: string) {
@@ -18,14 +60,59 @@ function getInitials(first: string, last?: string | null) {
   return (first[0] + (last?.[0] || '')).toUpperCase();
 }
 
+function CardFieldValue({ field, contact }: { field: CardFieldKey; contact: ContactWithTags }) {
+  const cls = "text-[10px] truncate";
+  const style = { color: 'var(--fg-faint)' };
+  switch (field) {
+    case 'role_company': {
+      const ctx = [contact.role, contact.company_name].filter(Boolean).join(' · ');
+      return ctx ? <div className={cls} style={{ color: 'var(--fg-muted)' }}>{ctx}</div> : null;
+    }
+    case 'email':
+      return contact.email ? <div className={cls} style={style}>{contact.email}</div> : null;
+    case 'phone':
+      return contact.phone ? <div className={cls} style={style}>{contact.phone}</div> : null;
+    case 'goal':
+      return contact.goal ? <div className={cls} style={{ ...style, fontStyle: 'italic' }}>{contact.goal}</div> : null;
+    case 'goal_target_date':
+      return contact.goal_target_date ? <div className={cls} style={style}>Target: {format(new Date(contact.goal_target_date + 'T00:00:00'), 'MMM d, yyyy')}</div> : null;
+    case 'follow_up':
+      return contact.follow_up_date ? <div className={cls} style={style}>Follow-up: {format(new Date(contact.follow_up_date + 'T00:00:00'), 'MMM d, yyyy')}</div> : null;
+    case 'follow_up_type':
+      return contact.follow_up_type ? <div className={cls} style={style}>Type: {contact.follow_up_type}</div> : null;
+    case 'follow_up_note':
+      return contact.follow_up_note ? <div className={cls} style={style}>{contact.follow_up_note}</div> : null;
+    case 'tags':
+      return contact.tags?.length ? (
+        <div className="flex flex-wrap gap-1">
+          {contact.tags.map((t) => (
+            <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: t.color + '22', color: t.color }}>{t.label}</span>
+          ))}
+        </div>
+      ) : null;
+    case 'source':
+      return contact.source ? <div className={cls} style={style}>Source: {contact.source}</div> : null;
+    case 'status':
+      return <div className={cls} style={style}>Status: {contact.status}</div>;
+    case 'notes':
+      return contact.notes ? <div className={cls} style={{ ...style, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact.notes}</div> : null;
+    case 'last_contacted':
+      return contact.last_contacted_at ? <div className={cls} style={style}>Last contact: {format(new Date(contact.last_contacted_at), 'MMM d, yyyy')}</div> : null;
+    default:
+      return null;
+  }
+}
+
 function ContactCard({
   contact,
   stages,
+  visibleFields,
   onDragStart,
   onMove,
 }: {
   contact: ContactWithTags;
   stages: PipelineStage[];
+  visibleFields: CardFieldKey[];
   onDragStart: (e: React.DragEvent, id: string) => void;
   onMove: (contactId: string, stageId: string) => void;
 }) {
@@ -33,7 +120,6 @@ function ContactCard({
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const fullName = `${contact.first_name} ${contact.last_name || ''}`.trim();
-  const context = [contact.role, contact.company_name].filter(Boolean).join(' · ');
 
   // Close menu on outside click
   useEffect(() => {
@@ -44,6 +130,10 @@ function ContactCard({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showMenu]);
+
+  // Separate role_company (shown inline with name) from other fields (shown below)
+  const showRoleCompany = visibleFields.includes('role_company');
+  const extraFields = visibleFields.filter((f) => f !== 'role_company');
 
   return (
     <div
@@ -75,16 +165,14 @@ function ContactCard({
           <div className="text-[12px] font-medium truncate" style={{ color: 'var(--fg)' }}>
             {fullName}
           </div>
-          {context && (
-            <div className="text-[10px] truncate" style={{ color: 'var(--fg-muted)' }}>
-              {context}
-            </div>
-          )}
+          {showRoleCompany && <CardFieldValue field="role_company" contact={contact} />}
         </div>
       </div>
-      {contact.goal && (
-        <div className="text-[10px] mt-1 truncate" style={{ color: 'var(--fg-faint)', fontStyle: 'italic' }}>
-          {contact.goal}
+      {extraFields.length > 0 && (
+        <div className="mt-1 flex flex-col gap-0.5">
+          {extraFields.map((f) => (
+            <CardFieldValue key={f} field={f} contact={contact} />
+          ))}
         </div>
       )}
       {/* Move to stage button */}
@@ -156,6 +244,7 @@ function StageColumn({
   stage,
   contacts,
   allStages,
+  visibleFields,
   onDragStart,
   onDrop,
   onMoveContact,
@@ -165,6 +254,7 @@ function StageColumn({
   stage: PipelineStage;
   contacts: ContactWithTags[];
   allStages: PipelineStage[];
+  visibleFields: CardFieldKey[];
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDrop: (stageId: string) => void;
   onMoveContact: (contactId: string, stageId: string) => void;
@@ -228,7 +318,7 @@ function StageColumn({
           </div>
         ) : (
           contacts.map((c) => (
-            <ContactCard key={c.id} contact={c} stages={allStages} onDragStart={onDragStart} onMove={onMoveContact} />
+            <ContactCard key={c.id} contact={c} stages={allStages} visibleFields={visibleFields} onDragStart={onDragStart} onMove={onMoveContact} />
           ))
         )}
       </div>
@@ -243,7 +333,20 @@ export default function PipelinePage() {
   const moveContact = useMoveContactStage();
   const [dragContactId, setDragContactId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [showFieldSettings, setShowFieldSettings] = useState(false);
+  const fieldSettingsRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { visible: visibleFields, toggle: toggleField } = useCardFields();
+
+  // Close field settings on outside click
+  useEffect(() => {
+    if (!showFieldSettings) return;
+    const handler = (e: MouseEvent) => {
+      if (fieldSettingsRef.current && !fieldSettingsRef.current.contains(e.target as Node)) setShowFieldSettings(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showFieldSettings]);
 
   const { data: allContacts } = useContacts({});
   const followUpCount = useMemo(() => {
@@ -330,6 +433,79 @@ export default function PipelinePage() {
               {grouped['__unassigned']?.length ? ` · ${grouped['__unassigned'].length} unassigned` : ''}
             </div>
           </div>
+          <div className="relative" ref={fieldSettingsRef}>
+            <button
+              onClick={() => setShowFieldSettings((v) => !v)}
+              className="flex items-center gap-1.5 text-[11px]"
+              style={{
+                padding: '5px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'var(--bg-subtle)',
+                color: 'var(--fg-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <Settings2 size={13} />
+              Card Fields
+            </button>
+            {showFieldSettings && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '100%',
+                  marginTop: 4,
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+                  zIndex: 50,
+                  width: 220,
+                  padding: '6px 0',
+                }}
+              >
+                <div className="text-[10px] font-medium px-3 py-1.5" style={{ color: 'var(--fg-muted)' }}>
+                  Show on cards
+                </div>
+                {CARD_FIELDS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => toggleField(f.key)}
+                    className="w-full text-left flex items-center gap-2 text-[11px]"
+                    style={{
+                      padding: '5px 12px',
+                      color: 'var(--fg)',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        border: '1px solid var(--border)',
+                        background: visibleFields.includes(f.key) ? 'var(--fg)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        color: 'var(--bg)',
+                        fontSize: 10,
+                      }}
+                    >
+                      {visibleFields.includes(f.key) ? '✓' : ''}
+                    </span>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Kanban board */}
@@ -362,7 +538,7 @@ export default function PipelinePage() {
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
                 {grouped['__unassigned'].map((c) => (
-                  <ContactCard key={c.id} contact={c} stages={stages || []} onDragStart={handleDragStart} onMove={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })} />
+                  <ContactCard key={c.id} contact={c} stages={stages || []} visibleFields={visibleFields} onDragStart={handleDragStart} onMove={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })} />
                 ))}
               </div>
             </div>
@@ -374,6 +550,7 @@ export default function PipelinePage() {
               stage={stage}
               contacts={grouped[stage.id] || []}
               allStages={stages || []}
+              visibleFields={visibleFields}
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onMoveContact={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })}
@@ -391,6 +568,7 @@ export default function PipelinePage() {
                   stage={stage}
                   contacts={grouped[stage.id] || []}
                   allStages={stages || []}
+                  visibleFields={visibleFields}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
                   onMoveContact={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })}
