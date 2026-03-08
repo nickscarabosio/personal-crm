@@ -1,6 +1,7 @@
 'use client';
 
 import { Sun, Moon, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTheme } from './theme-provider';
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 
 export function TopNav({ onAdd }: Props) {
   const { theme, toggle } = useTheme();
+  const router = useRouter();
 
   return (
     <header
@@ -49,17 +51,20 @@ export function TopNav({ onAdd }: Props) {
             <Plus size={16} />
           </button>
         )}
-        <div
+        <button
+          onClick={() => router.push('/settings')}
           className="flex items-center justify-center rounded-full text-[11px] font-medium"
           style={{
             width: 28,
             height: 28,
             background: '#3f3f46',
             color: '#fafafa',
+            border: 'none',
+            cursor: 'pointer',
           }}
         >
           NK
-        </div>
+        </button>
       </div>
     </header>
   );

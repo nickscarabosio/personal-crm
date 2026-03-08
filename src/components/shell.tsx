@@ -2,7 +2,6 @@
 
 import { type ReactNode, useState, useEffect, useCallback } from 'react';
 import { TopNav } from './top-nav';
-import { SectionTabs } from './section-tabs';
 import { BottomNav } from './bottom-nav';
 import { AppSidebar } from './app-sidebar';
 import { CommandPalette } from './command-palette';
@@ -94,10 +93,9 @@ export function Shell({
   return (
     <>
       <TopNav onAdd={onAdd} />
-      <SectionTabs tabs={tabs} active={activeTab} onChange={onTabChange} />
       <main
         style={{
-          paddingTop: 88,
+          paddingTop: 48,
           paddingBottom: 60,
           minHeight: '100vh',
         }}

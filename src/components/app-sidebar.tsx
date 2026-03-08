@@ -310,7 +310,8 @@ export function AppSidebar() {
             >
               <LogOut size={14} />
             </button>
-            <div
+            <button
+              onClick={() => router.push('/settings')}
               style={{
                 width: 28,
                 height: 28,
@@ -323,10 +324,12 @@ export function AppSidebar() {
                 fontSize: 11,
                 fontWeight: 500,
                 flexShrink: 0,
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
               NK
-            </div>
+            </button>
           </div>
         )}
       </div>
