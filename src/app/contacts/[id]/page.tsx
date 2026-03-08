@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow, format, isPast, isToday } from 'date-fns';
 import {
@@ -19,6 +19,8 @@ import { ContactModal } from '@/components/contact-modal';
 import { InteractionModal } from '@/components/interaction-modal';
 import { useContact, useContacts, useUpdateContact } from '@/hooks/use-contacts';
 import { useInteractions, useCreateInteraction } from '@/hooks/use-interactions';
+import { useInteractionCounts } from '@/hooks/use-interaction-counts';
+import { calculateWarmthScore, getScoreColor, getScoreLabel } from '@/lib/scoring';
 import type { Interaction, ContactInsert } from '@/types/database';
 
 const AVATAR_COLORS = ['#3f3f46', '#52525b', '#71717a', '#27272a', '#18181b'];
@@ -75,6 +77,7 @@ export default function ContactProfile() {
   const { data: allContacts } = useContacts({});
   const updateContact = useUpdateContact();
   const createInteraction = useCreateInteraction();
+  const { data: interactionCounts } = useInteractionCounts();
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
@@ -84,6 +87,50 @@ export default function ContactProfile() {
   const [logText, setLogText] = useState('');
   const [logOutcome, setLogOutcome] = useState('');
 
+  // Inline notes editing
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState('');
+  const [notesSaved, setNotesSaved] = useState(false);
+  const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (contact) {
+      setNotesValue(contact.notes || '');
+    }
+  }, [contact]);
+
+  const saveNotes = useCallback(
+    async (value: string) => {
+      if (!contact) return;
+      await updateContact.mutateAsync({
+        id: contact.id,
+        contact: { notes: value || null },
+      });
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 1500);
+    },
+    [contact, updateContact]
+  );
+
+  const handleNotesBlur = useCallback(() => {
+    if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current);
+    saveNotes(notesValue);
+    setEditingNotes(false);
+  }, [notesValue, saveNotes]);
+
+  const handleNotesKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current);
+        saveNotes(notesValue);
+        setEditingNotes(false);
+      }
+    },
+    [notesValue, saveNotes]
+  );
+
   const followUpCount = useMemo(() => {
     if (!allContacts) return 0;
     return allContacts.filter(
@@ -92,6 +139,7 @@ export default function ContactProfile() {
   }, [allContacts]);
 
   const tabTabs = [
+    { key: 'dashboard', label: 'Dashboard' },
     { key: 'people', label: 'People', badge: allContacts?.length || 0 },
     { key: 'follow-up', label: 'Follow-Up', badge: followUpCount, alert: followUpCount > 0 },
     { key: 'record', label: 'Record' },
@@ -102,6 +150,9 @@ export default function ContactProfile() {
   const handleTabChange = (key: string) => {
     if (key === 'people') router.push('/');
     if (key === 'follow-up') router.push('/follow-ups');
+    if (key === 'dashboard') router.push('/dashboard');
+    if (key === 'companies') router.push('/companies');
+    if (key === 'activity') router.push('/activity');
   };
 
   const handleLog = async () => {
@@ -168,7 +219,7 @@ export default function ContactProfile() {
       <div className="px-4 py-3">
         {/* Header */}
         <div
-          className="flex items-center justify-between mb-4 pb-3"
+          className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 gap-3"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-3">
@@ -258,9 +309,9 @@ export default function ContactProfile() {
           </div>
         </div>
 
-        {/* 3-column layout */}
+        {/* 3-column layout — stacks on mobile */}
         <div
-          className="grid gap-4"
+          className="flex flex-col sm:grid gap-4"
           style={{ gridTemplateColumns: '188px 1fr 196px' }}
         >
           {/* Left: Contact info */}
@@ -350,12 +401,53 @@ export default function ContactProfile() {
                   <div style={fieldValueStyle}>{contact.source}</div>
                 </div>
               )}
-              {contact.notes && (
-                <div>
+              <div>
+                <div className="flex items-center gap-2">
                   <div style={fieldLabelStyle}>Notes</div>
-                  <div style={{ ...fieldValueStyle, whiteSpace: 'pre-wrap' }}>{contact.notes}</div>
+                  {notesSaved && (
+                    <span className="text-[10px]" style={{ color: '#22c55e' }}>Saved</span>
+                  )}
                 </div>
-              )}
+                {editingNotes ? (
+                  <textarea
+                    ref={notesTextareaRef}
+                    value={notesValue}
+                    onChange={(e) => setNotesValue(e.target.value)}
+                    onBlur={handleNotesBlur}
+                    onKeyDown={handleNotesKeyDown}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      minHeight: 80,
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: '6px 10px',
+                      fontSize: 13,
+                      color: 'var(--fg)',
+                      resize: 'vertical',
+                    }}
+                  />
+                ) : (
+                  <div
+                    onClick={() => setEditingNotes(true)}
+                    className="cursor-pointer rounded"
+                    style={{
+                      ...fieldValueStyle,
+                      whiteSpace: 'pre-wrap',
+                      minHeight: 20,
+                      padding: '2px 0',
+                    }}
+                    title="Click to edit"
+                  >
+                    {contact.notes || (
+                      <span style={{ color: 'var(--fg-faint)', fontStyle: 'italic', fontSize: 12 }}>
+                        Click to add notes...
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -599,6 +691,31 @@ export default function ContactProfile() {
                   </button>
                 </div>
               </div>
+
+              {/* Warmth Score */}
+              {contact && (() => {
+                const score = calculateWarmthScore(contact, interactionCounts?.[contact.id] || 0);
+                const color = getScoreColor(score);
+                const label = getScoreLabel(score);
+                return (
+                  <div>
+                    <div style={fieldLabelStyle}>Warmth Score</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[26px] font-bold" style={{ color }}>{score}</span>
+                      <span className="text-[11px] font-medium" style={{ color }}>{label}</span>
+                    </div>
+                    <div
+                      className="rounded-full overflow-hidden mt-1"
+                      style={{ width: '100%', height: 4, background: 'var(--bg-muted2)' }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${score}%`, background: color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Touches */}
               <div>

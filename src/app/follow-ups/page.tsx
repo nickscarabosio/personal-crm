@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, isPast, isToday } from 'date-fns';
+import { format, isPast, isToday, addDays, addMonths, nextMonday } from 'date-fns';
 import { Shell } from '@/components/shell';
 import { useContacts, useUpdateContact } from '@/hooks/use-contacts';
 import type { ContactWithTags } from '@/types/database';
@@ -78,18 +78,17 @@ export default function FollowUps() {
   );
 
   const handleSnooze = useCallback(
-    async (c: ContactWithTags) => {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
+    async (c: ContactWithTags, date: Date) => {
       await updateContact.mutateAsync({
         id: c.id,
-        contact: { follow_up_date: tomorrow.toISOString().split('T')[0] },
+        contact: { follow_up_date: date.toISOString().split('T')[0] },
       });
     },
     [updateContact]
   );
 
   const tabTabs = [
+    { key: 'dashboard', label: 'Dashboard' },
     { key: 'people', label: 'People', badge: allContacts?.length || 0 },
     { key: 'follow-up', label: 'Follow-Up', badge: followUpCount, alert: followUpCount > 0 },
     { key: 'record', label: 'Record' },
@@ -99,6 +98,117 @@ export default function FollowUps() {
 
   const handleTabChange = (key: string) => {
     if (key === 'people') router.push('/');
+    if (key === 'dashboard') router.push('/dashboard');
+    if (key === 'companies') router.push('/companies');
+    if (key === 'activity') router.push('/activity');
+  };
+
+  const SnoozePicker = ({ contact }: { contact: ContactWithTags }) => {
+    const [open, setOpen] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const handler = (e: MouseEvent) => {
+        if (ref.current && !ref.current.contains(e.target as Node)) {
+          setOpen(false);
+          setShowDatePicker(false);
+        }
+      };
+      document.addEventListener('mousedown', handler);
+      return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const snoozeOptions = [
+      { label: 'Tomorrow', date: addDays(new Date(), 1) },
+      { label: 'In 3 Days', date: addDays(new Date(), 3) },
+      { label: 'Next Week', date: nextMonday(new Date()) },
+      { label: 'Next Month', date: addMonths(new Date(), 1) },
+    ];
+
+    return (
+      <div className="relative" ref={ref}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="rounded text-[11px] font-medium"
+          style={{
+            height: 24,
+            padding: '0 8px',
+            background: 'transparent',
+            color: 'var(--fg-muted)',
+          }}
+        >
+          Snooze
+        </button>
+        {open && (
+          <div
+            className="absolute right-0 bottom-full mb-1 z-20"
+            style={{
+              width: 160,
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+              overflow: 'hidden',
+            }}
+          >
+            {snoozeOptions.map((opt) => (
+              <button
+                key={opt.label}
+                onClick={() => {
+                  handleSnooze(contact, opt.date);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-[12px]"
+                style={{ color: 'var(--fg)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-muted)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                {opt.label}
+                <span className="ml-2 text-[10px]" style={{ color: 'var(--fg-faint)' }}>
+                  {format(opt.date, 'MMM d')}
+                </span>
+              </button>
+            ))}
+            {!showDatePicker ? (
+              <button
+                onClick={() => setShowDatePicker(true)}
+                className="w-full text-left px-3 py-2 text-[12px]"
+                style={{ color: 'var(--fg)', borderTop: '1px solid var(--border)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-muted)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                Pick Date...
+              </button>
+            ) : (
+              <div className="px-3 py-2" style={{ borderTop: '1px solid var(--border)' }}>
+                <input
+                  type="date"
+                  autoFocus
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleSnooze(contact, new Date(e.target.value + 'T12:00:00'));
+                      setOpen(false);
+                      setShowDatePicker(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    height: 28,
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    padding: '0 6px',
+                    fontSize: 11,
+                    color: 'var(--fg)',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const QueueCard = ({
@@ -172,18 +282,7 @@ export default function FollowUps() {
           >
             Done
           </button>
-          <button
-            onClick={() => handleSnooze(contact)}
-            className="rounded text-[11px] font-medium"
-            style={{
-              height: 24,
-              padding: '0 8px',
-              background: 'transparent',
-              color: 'var(--fg-muted)',
-            }}
-          >
-            Snooze
-          </button>
+          <SnoozePicker contact={contact} />
         </div>
       </div>
     );

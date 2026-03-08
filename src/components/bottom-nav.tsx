@@ -1,11 +1,11 @@
 'use client';
 
-import { Users, Clock, FileText, Building2, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, FileText, Building2, Activity } from 'lucide-react';
 
 const items = [
+  { key: 'dashboard', label: 'Home', icon: LayoutDashboard },
   { key: 'people', label: 'People', icon: Users },
   { key: 'follow-up', label: 'Follow-Up', icon: Clock, hasAlert: true },
-  { key: 'record', label: 'Record', icon: FileText },
   { key: 'companies', label: 'Companies', icon: Building2 },
   { key: 'activity', label: 'Activity', icon: Activity },
 ];

@@ -1,9 +1,11 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useState, useEffect, useCallback } from 'react';
 import { TopNav } from './top-nav';
 import { SectionTabs } from './section-tabs';
 import { BottomNav } from './bottom-nav';
+import { CommandPalette } from './command-palette';
+import { useTheme } from './theme-provider';
 
 type Tab = {
   key: string;
@@ -29,6 +31,43 @@ export function Shell({
   onAdd,
   showFollowUpDot,
 }: Props) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const { toggle: toggleTheme } = useTheme();
+
+  const handleGlobalKey = useCallback(
+    (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K to open command palette
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // Escape to close palette
+      if (e.key === 'Escape') {
+        setPaletteOpen(false);
+        return;
+      }
+
+      // Don't fire shortcuts when focused on inputs
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      // N — open new contact modal
+      if (e.key === 'n' || e.key === 'N') {
+        if (!e.metaKey && !e.ctrlKey) {
+          onAdd?.();
+        }
+      }
+    },
+    [onAdd]
+  );
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [handleGlobalKey]);
+
   return (
     <>
       <TopNav onAdd={onAdd} />
@@ -47,6 +86,13 @@ export function Shell({
         onChange={onTabChange}
         showFollowUpDot={showFollowUpDot}
       />
+      {paletteOpen && (
+        <CommandPalette
+          onClose={() => setPaletteOpen(false)}
+          onNewContact={onAdd}
+          onToggleTheme={toggleTheme}
+        />
+      )}
     </>
   );
 }
