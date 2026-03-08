@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Personal CRM",
+  title: "Nexus CRM",
   description: "Your personal relationship manager",
 };
 
@@ -24,9 +24,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
       >
         <Providers>{children}</Providers>
       </body>

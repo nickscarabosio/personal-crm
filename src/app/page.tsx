@@ -1,239 +1,311 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatDistanceToNow, format, isPast, isToday } from 'date-fns';
-import { Plus, Search, Linkedin, Mail, Trash2 } from 'lucide-react';
-import { Sidebar } from '@/components/sidebar';
+import { Search, Pencil, Mail } from 'lucide-react';
+import { Shell } from '@/components/shell';
 import { ContactModal } from '@/components/contact-modal';
-import { StatusBadge } from '@/components/status-badge';
+import { StatusDot } from '@/components/status-badge';
 import { useContacts, useDeleteContact } from '@/hooks/use-contacts';
 import { useTags } from '@/hooks/use-tags';
 import type { ContactWithTags } from '@/types/database';
 
+const AVATAR_COLORS = ['#3f3f46', '#52525b', '#71717a', '#27272a', '#18181b'];
+
+function getAvatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function getInitials(first: string, last?: string | null) {
+  return (first[0] + (last?.[0] || '')).toUpperCase();
+}
+
+function followUpInfo(date: string | null) {
+  if (!date) return { color: '#a1a1aa', text: '--', dot: '#a1a1aa' };
+  const d = new Date(date);
+  if (isPast(d) && !isToday(d)) return { color: '#ef4444', text: format(d, 'MMM d'), dot: '#ef4444' };
+  if (isToday(d)) return { color: '#ca8a04', text: 'Today', dot: '#ca8a04' };
+  return { color: '#22c55e', text: format(d, 'MMM d'), dot: '#22c55e' };
+}
+
 export default function PeopleBoard() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [tagFilter, setTagFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithTags | null>(null);
 
   const { data: contacts, isLoading } = useContacts({
     search,
     status: statusFilter,
-    tagId: tagFilter || undefined,
   });
   const { data: tags } = useTags();
   const deleteContact = useDeleteContact();
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Delete ${name}?`)) {
-      deleteContact.mutate(id);
-    }
+  // Count for follow-ups
+  const { data: allContacts } = useContacts({});
+  const followUpCount = useMemo(() => {
+    if (!allContacts) return 0;
+    return allContacts.filter(
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+    ).length;
+  }, [allContacts]);
+
+  const tabTabs = [
+    { key: 'people', label: 'People', badge: contacts?.length || 0 },
+    { key: 'follow-up', label: 'Follow-Up', badge: followUpCount, alert: followUpCount > 0 },
+    { key: 'record', label: 'Record' },
+    { key: 'companies', label: 'Companies' },
+    { key: 'activity', label: 'Activity' },
+  ];
+
+  const handleTabChange = (key: string) => {
+    if (key === 'follow-up') router.push('/follow-ups');
   };
 
-  return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">People</h1>
-          <button
-            onClick={() => {
-              setEditingContact(null);
-              setModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4" />
-            Add Contact
-          </button>
-        </div>
+  const handleRowClick = (id: string) => {
+    router.push(`/contacts/${id}`);
+  };
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+  const isActiveFilter = statusFilter === 'active';
+
+  return (
+    <Shell
+      tabs={tabTabs}
+      activeTab="people"
+      onTabChange={handleTabChange}
+      onAdd={() => { setEditingContact(null); setModalOpen(true); }}
+      showFollowUpDot={followUpCount > 0}
+    >
+      <div className="px-4 py-3">
+        {/* Toolbar */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--fg-faint)' }}
+            />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search contacts..."
-              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-8 pr-3"
+              style={{
+                height: 34,
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                fontSize: 13,
+                color: 'var(--fg)',
+              }}
             />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          <button
+            onClick={() => setStatusFilter(isActiveFilter ? 'all' : 'active')}
+            className="rounded-md text-[12px] font-medium shrink-0"
+            style={{
+              height: 34,
+              padding: '0 12px',
+              border: '1px solid var(--border-med)',
+              background: isActiveFilter ? 'var(--bg-muted2)' : 'var(--bg)',
+              color: 'var(--fg)',
+            }}
           >
-            <option value="all">All Status</option>
-            <option value="lead">Lead</option>
-            <option value="active">Active</option>
-            <option value="dormant">Dormant</option>
-            <option value="closed">Closed</option>
-          </select>
-          <select
-            value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            {isActiveFilter ? 'Active' : 'All'}
+          </button>
+          <button
+            onClick={() => { setEditingContact(null); setModalOpen(true); }}
+            className="rounded-md text-[12px] font-medium shrink-0"
+            style={{
+              height: 34,
+              padding: '0 14px',
+              background: 'var(--fg)',
+              color: 'var(--bg)',
+            }}
           >
-            <option value="">All Tags</option>
-            {tags?.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+            Add
+          </button>
         </div>
 
         {/* Table */}
-        <div className="bg-white border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-gray-50 text-left">
-                <th className="px-4 py-3 font-medium text-gray-500">Name</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Company</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Status</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Tags</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Last Touch</th>
-                <th className="px-4 py-3 font-medium text-gray-500">Follow-Up</th>
-                <th className="px-4 py-3 font-medium text-gray-500 w-24">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
-                    Loading...
-                  </td>
-                </tr>
-              ) : contacts?.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
-                    No contacts found
-                  </td>
-                </tr>
-              ) : (
-                contacts?.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/contacts/${c.id}`}
-                        className="font-medium text-gray-900 hover:text-blue-600"
+        <div
+          className="overflow-hidden"
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--bg)',
+            boxShadow: 'var(--shadow)',
+          }}
+        >
+          {/* Header */}
+          <div
+            className="grid items-center"
+            style={{
+              gridTemplateColumns: '32px 2fr 1.1fr 1fr 110px 64px',
+              height: 34,
+              background: 'var(--bg-subtle)',
+              borderBottom: '1px solid var(--border)',
+              padding: '0 12px',
+            }}
+          >
+            <div />
+            <span className="text-[11px] uppercase font-medium" style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}>
+              Name
+            </span>
+            <span className="text-[11px] uppercase font-medium" style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}>
+              Tags
+            </span>
+            <span className="text-[11px] uppercase font-medium" style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}>
+              Last touch
+            </span>
+            <span className="text-[11px] uppercase font-medium" style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}>
+              Follow-up
+            </span>
+            <div />
+          </div>
+
+          {/* Rows */}
+          {isLoading ? (
+            <div className="py-12 text-center text-[13px]" style={{ color: 'var(--fg-faint)' }}>
+              Loading...
+            </div>
+          ) : contacts?.length === 0 ? (
+            <div className="py-12 text-center text-[13px]" style={{ color: 'var(--fg-faint)' }}>
+              No contacts found
+            </div>
+          ) : (
+            contacts?.map((c) => {
+              const fu = followUpInfo(c.follow_up_date);
+              const fullName = `${c.first_name} ${c.last_name || ''}`.trim();
+              const subtitle = [c.role, c.company_name].filter(Boolean).join(' \u00B7 ');
+              return (
+                <div
+                  key={c.id}
+                  className="grid items-center cursor-pointer group"
+                  style={{
+                    gridTemplateColumns: '32px 2fr 1.1fr 1fr 110px 64px',
+                    minHeight: 50,
+                    borderBottom: '1px solid var(--border)',
+                    padding: '0 12px',
+                  }}
+                  onClick={() => handleRowClick(c.id)}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  {/* Checkbox placeholder */}
+                  <div />
+
+                  {/* Name */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="shrink-0 flex items-center justify-center rounded-full text-[10px] font-medium"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: getAvatarColor(fullName),
+                        color: '#fafafa',
+                      }}
+                    >
+                      {getInitials(c.first_name, c.last_name)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>
+                        {fullName}
+                      </div>
+                      {subtitle && (
+                        <div className="text-[11px] truncate" style={{ color: 'var(--fg-muted)' }}>
+                          {subtitle}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-1">
+                    {c.tags.map((t) => (
+                      <span
+                        key={t.id}
+                        className="rounded-full"
+                        style={{
+                          height: 19,
+                          padding: '0 7px',
+                          fontSize: 10,
+                          fontWeight: 500,
+                          lineHeight: '19px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-muted)',
+                          color: 'var(--fg-muted)',
+                        }}
                       >
-                        {c.first_name} {c.last_name}
-                      </Link>
-                      {c.role && (
-                        <p className="text-xs text-gray-500">{c.role}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{c.company_name || '—'}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {c.tags.map((t) => (
-                          <span
-                            key={t.id}
-                            className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: t.color }}
-                          >
-                            {t.label}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {c.last_contacted_at
-                        ? formatDistanceToNow(new Date(c.last_contacted_at), {
-                            addSuffix: true,
-                          })
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.follow_up_date ? (
-                        <span
-                          className={`text-xs font-medium ${
-                            isPast(new Date(c.follow_up_date)) && !isToday(new Date(c.follow_up_date))
-                              ? 'text-red-600'
-                              : isToday(new Date(c.follow_up_date))
-                              ? 'text-amber-600'
-                              : 'text-gray-500'
-                          }`}
-                        >
-                          {format(new Date(c.follow_up_date), 'MMM d')}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        {c.linkedin_url && (
-                          <a
-                            href={c.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-600"
-                          >
-                            <Linkedin className="w-3.5 h-3.5" />
-                          </a>
-                        )}
-                        {c.email && (
-                          <a
-                            href={`mailto:${c.email}`}
-                            className="p-1.5 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-600"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                          </a>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingContact(c);
-                            setModalOpen(true);
-                          }}
-                          className="p-1.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600 text-xs"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(c.id, `${c.first_name} ${c.last_name}`);
-                          }}
-                          className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                        {t.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Last touch */}
+                  <span className="text-[12px]" style={{ color: 'var(--fg-muted)' }}>
+                    {c.last_contacted_at
+                      ? formatDistanceToNow(new Date(c.last_contacted_at), { addSuffix: true })
+                      : '--'}
+                  </span>
+
+                  {/* Follow-up */}
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block rounded-full shrink-0"
+                      style={{ width: 6, height: 6, background: fu.dot }}
+                    />
+                    <span className="text-[12px]" style={{ color: fu.color }}>
+                      {fu.text}
+                    </span>
+                  </div>
+
+                  {/* Hover actions */}
+                  <div
+                    className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => { setEditingContact(c); setModalOpen(true); }}
+                      className="flex items-center justify-center rounded"
+                      style={{ width: 28, height: 28, color: 'var(--fg-faint)' }}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    {c.email && (
+                      <a
+                        href={`mailto:${c.email}`}
+                        className="flex items-center justify-center rounded"
+                        style={{ width: 28, height: 28, color: 'var(--fg-faint)' }}
+                      >
+                        <Mail size={13} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Contact count */}
         {contacts && (
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-[11px] mt-2" style={{ color: 'var(--fg-faint)' }}>
             {contacts.length} contact{contacts.length !== 1 ? 's' : ''}
           </p>
         )}
+      </div>
 
-        {modalOpen && (
-          <ContactModal
-            contact={editingContact}
-            onClose={() => {
-              setModalOpen(false);
-              setEditingContact(null);
-            }}
-          />
-        )}
-      </main>
-    </div>
+      {modalOpen && (
+        <ContactModal
+          contact={editingContact}
+          onClose={() => { setModalOpen(false); setEditingContact(null); }}
+        />
+      )}
+    </Shell>
   );
 }

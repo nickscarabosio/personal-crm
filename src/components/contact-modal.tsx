@@ -13,6 +13,27 @@ type Props = {
   onClose: () => void;
 };
 
+const inputStyle: React.CSSProperties = {
+  height: 32,
+  background: 'var(--bg-subtle)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: '0 10px',
+  fontSize: 13,
+  color: 'var(--fg)',
+  width: '100%',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 500,
+  color: 'var(--fg-muted)',
+  marginBottom: 4,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.4px',
+};
+
 export function ContactModal({ contact, onClose }: Props) {
   const isEdit = !!contact;
   const createContact = useCreateContact();
@@ -85,96 +106,126 @@ export function ContactModal({ contact, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">{isEdit ? 'Edit Contact' : 'New Contact'}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-5 h-5" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.45)' }}
+    >
+      <div
+        className="w-full overflow-y-auto"
+        style={{
+          maxWidth: 440,
+          maxHeight: '90vh',
+          background: 'var(--bg)',
+          borderRadius: 10,
+          boxShadow: '0 25px 50px rgba(0,0,0,.15)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-5 py-3"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>
+            {isEdit ? 'Edit contact' : 'New contact'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center rounded"
+            style={{ width: 28, height: 28, color: 'var(--fg-muted)' }}
+          >
+            <X size={16} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-3">
+          {/* First / Last */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+              <label style={labelStyle}>First Name *</label>
               <input
                 required
                 value={form.first_name}
                 onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={inputStyle}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <label style={labelStyle}>Last Name</label>
               <input
                 value={form.last_name}
                 onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={inputStyle}
               />
             </div>
           </div>
+
+          <div>
+            <label style={labelStyle}>Company</label>
+            <input
+              value={form.company_name}
+              onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Role</label>
+            <input
+              value={form.role}
+              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Email</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Phone / Source */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label style={labelStyle}>Phone</label>
               <input
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
-              <input
-                value={form.company_name}
-                onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={inputStyle}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <input
-                value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn URL</label>
-            <input
-              value={form.linkedin_url}
-              onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="https://linkedin.com/in/..."
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+              <label style={labelStyle}>Source</label>
               <input
                 value={form.source}
                 onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={inputStyle}
                 placeholder="Conference, Referral..."
               />
             </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>LinkedIn URL</label>
+            <input
+              value={form.linkedin_url}
+              onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
+              style={inputStyle}
+              placeholder="https://linkedin.com/in/..."
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <label style={labelStyle}>Status</label>
               <select
                 value={form.status}
                 onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as ContactInsert['status'] }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={{ ...inputStyle, appearance: 'auto' as never }}
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>
@@ -183,35 +234,36 @@ export function ContactModal({ contact, onClose }: Props) {
                 ))}
               </select>
             </div>
+            <div>
+              <label style={labelStyle}>Follow-Up Date</label>
+              <input
+                type="date"
+                value={form.follow_up_date}
+                onChange={(e) => setForm((f) => ({ ...f, follow_up_date: e.target.value }))}
+                style={inputStyle}
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Follow-Up Date</label>
-            <input
-              type="date"
-              value={form.follow_up_date}
-              onChange={(e) => setForm((f) => ({ ...f, follow_up_date: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-            />
-          </div>
+
           {allTags && allTags.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-              <div className="flex flex-wrap gap-2">
+              <label style={labelStyle}>Tags</label>
+              <div className="flex flex-wrap gap-1.5">
                 {allTags.map((tag) => (
                   <button
                     key={tag.id}
                     type="button"
                     onClick={() => toggleTag(tag.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      selectedTags.includes(tag.id)
-                        ? 'text-white border-transparent'
-                        : 'text-gray-600 border-gray-300 bg-white hover:bg-gray-50'
-                    }`}
-                    style={
-                      selectedTags.includes(tag.id)
-                        ? { backgroundColor: tag.color }
-                        : undefined
-                    }
+                    className="rounded-full"
+                    style={{
+                      height: 19,
+                      padding: '0 8px',
+                      fontSize: 10,
+                      fontWeight: 500,
+                      border: '1px solid var(--border)',
+                      background: selectedTags.includes(tag.id) ? 'var(--bg-muted2)' : 'var(--bg-muted)',
+                      color: selectedTags.includes(tag.id) ? 'var(--fg)' : 'var(--fg-muted)',
+                    }}
                   >
                     {tag.label}
                   </button>
@@ -219,33 +271,57 @@ export function ContactModal({ contact, onClose }: Props) {
               </div>
             </div>
           )}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label style={labelStyle}>Notes</label>
             <textarea
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               rows={3}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+              style={{
+                ...inputStyle,
+                height: 'auto',
+                padding: '6px 10px',
+                resize: 'none',
+              }}
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+
+          {/* Footer */}
+          <div
+            className="flex justify-end gap-2 pt-3"
+            style={{ borderTop: '1px solid var(--border)', marginTop: 12 }}
+          >
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50"
+              className="rounded-md text-[13px] font-medium"
+              style={{
+                height: 32,
+                padding: '0 14px',
+                border: '1px solid var(--border-med)',
+                background: 'var(--bg)',
+                color: 'var(--fg)',
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createContact.isPending || updateContact.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md text-[13px] font-medium disabled:opacity-50"
+              style={{
+                height: 32,
+                padding: '0 14px',
+                background: 'var(--fg)',
+                color: 'var(--bg)',
+              }}
             >
               {createContact.isPending || updateContact.isPending
                 ? 'Saving...'
                 : isEdit
-                ? 'Update'
-                : 'Create'}
+                ? 'Update contact'
+                : 'Add contact'}
             </button>
           </div>
         </form>

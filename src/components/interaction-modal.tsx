@@ -11,6 +11,27 @@ type Props = {
   onClose: () => void;
 };
 
+const inputStyle: React.CSSProperties = {
+  height: 32,
+  background: 'var(--bg-subtle)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: '0 10px',
+  fontSize: 13,
+  color: 'var(--fg)',
+  width: '100%',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 500,
+  color: 'var(--fg-muted)',
+  marginBottom: 4,
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.4px',
+};
+
 export function InteractionModal({ contactId, onClose }: Props) {
   const createInteraction = useCreateInteraction();
   const [form, setForm] = useState({
@@ -35,22 +56,43 @@ export function InteractionModal({ contactId, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">Log Interaction</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-5 h-5" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.45)' }}
+    >
+      <div
+        className="w-full"
+        style={{
+          maxWidth: 440,
+          background: 'var(--bg)',
+          borderRadius: 10,
+          boxShadow: '0 25px 50px rgba(0,0,0,.15)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <div
+          className="flex items-center justify-between px-5 py-3"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>
+            Log interaction
+          </h2>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center rounded"
+            style={{ width: 28, height: 28, color: 'var(--fg-muted)' }}
+          >
+            <X size={16} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label style={labelStyle}>Type</label>
               <select
                 value={form.type}
                 onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as (typeof TYPES)[number] }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={{ ...inputStyle, appearance: 'auto' as never }}
               >
                 {TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -60,57 +102,78 @@ export function InteractionModal({ contactId, onClose }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label style={labelStyle}>Date</label>
               <input
                 type="datetime-local"
                 value={form.date}
                 onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                style={inputStyle}
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Summary</label>
+            <label style={labelStyle}>Summary</label>
             <textarea
               value={form.summary}
               onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))}
               rows={3}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+              style={{
+                ...inputStyle,
+                height: 'auto',
+                padding: '6px 10px',
+                resize: 'none',
+              }}
               placeholder="What happened?"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Outcome</label>
+            <label style={labelStyle}>Outcome</label>
             <input
               value={form.outcome}
               onChange={(e) => setForm((f) => ({ ...f, outcome: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              style={inputStyle}
               placeholder="Result or next step"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Set Follow-Up</label>
+            <label style={labelStyle}>Set Follow-Up</label>
             <input
               type="date"
               value={form.follow_up_date}
               onChange={(e) => setForm((f) => ({ ...f, follow_up_date: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              style={inputStyle}
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div
+            className="flex justify-end gap-2 pt-3"
+            style={{ borderTop: '1px solid var(--border)', marginTop: 12 }}
+          >
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border rounded-lg hover:bg-gray-50"
+              className="rounded-md text-[13px] font-medium"
+              style={{
+                height: 32,
+                padding: '0 14px',
+                border: '1px solid var(--border-med)',
+                background: 'var(--bg)',
+                color: 'var(--fg)',
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createInteraction.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md text-[13px] font-medium disabled:opacity-50"
+              style={{
+                height: 32,
+                padding: '0 14px',
+                background: 'var(--fg)',
+                color: 'var(--bg)',
+              }}
             >
-              {createInteraction.isPending ? 'Saving...' : 'Log It'}
+              {createInteraction.isPending ? 'Saving...' : 'Log it'}
             </button>
           </div>
         </form>

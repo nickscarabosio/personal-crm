@@ -1,30 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow, format, isPast, isToday } from 'date-fns';
 import {
-  ArrowLeft,
-  Linkedin,
   Mail,
   Phone,
-  Plus,
-  Pencil,
-  Trash2,
-  MessageSquare,
+  Linkedin,
   PhoneCall,
   Video,
   FileText,
+  MessageSquare,
   Globe,
 } from 'lucide-react';
-import { Sidebar } from '@/components/sidebar';
-import { StatusBadge } from '@/components/status-badge';
+import { Shell } from '@/components/shell';
+import { StatusDot } from '@/components/status-badge';
 import { ContactModal } from '@/components/contact-modal';
 import { InteractionModal } from '@/components/interaction-modal';
-import { useContact, useDeleteContact } from '@/hooks/use-contacts';
-import { useInteractions } from '@/hooks/use-interactions';
-import type { Interaction } from '@/types/database';
+import { useContact, useContacts, useUpdateContact } from '@/hooks/use-contacts';
+import { useInteractions, useCreateInteraction } from '@/hooks/use-interactions';
+import type { Interaction, ContactInsert } from '@/types/database';
+
+const AVATAR_COLORS = ['#3f3f46', '#52525b', '#71717a', '#27272a', '#18181b'];
+
+function getAvatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function getInitials(first: string, last?: string | null) {
+  return (first[0] + (last?.[0] || '')).toUpperCase();
+}
 
 const interactionIcons: Record<string, typeof PhoneCall> = {
   call: PhoneCall,
@@ -36,239 +43,635 @@ const interactionIcons: Record<string, typeof PhoneCall> = {
   other: Globe,
 };
 
+const LOG_TYPES = ['Note', 'Call', 'Email', 'Meeting'] as const;
+
+const fieldLabelStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  color: 'var(--fg-faint)',
+  marginBottom: 2,
+};
+
+const fieldValueStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: 'var(--fg)',
+};
+
+const STATUS_OPTIONS = ['active', 'lead', 'dormant', 'closed'] as const;
+const statusDotColors: Record<string, string> = {
+  active: '#22c55e',
+  lead: '#ca8a04',
+  dormant: '#a1a1aa',
+  closed: '#a1a1aa',
+};
+
 export default function ContactProfile() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: contact, isLoading } = useContact(id);
   const { data: interactions } = useInteractions(id);
-  const deleteContact = useDeleteContact();
+  const { data: allContacts } = useContacts({});
+  const updateContact = useUpdateContact();
+  const createInteraction = useCreateInteraction();
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
 
-  const handleDelete = async () => {
+  // Inline log state
+  const [logType, setLogType] = useState<string>('Note');
+  const [logText, setLogText] = useState('');
+  const [logOutcome, setLogOutcome] = useState('');
+
+  const followUpCount = useMemo(() => {
+    if (!allContacts) return 0;
+    return allContacts.filter(
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+    ).length;
+  }, [allContacts]);
+
+  const tabTabs = [
+    { key: 'people', label: 'People', badge: allContacts?.length || 0 },
+    { key: 'follow-up', label: 'Follow-Up', badge: followUpCount, alert: followUpCount > 0 },
+    { key: 'record', label: 'Record' },
+    { key: 'companies', label: 'Companies' },
+    { key: 'activity', label: 'Activity' },
+  ];
+
+  const handleTabChange = (key: string) => {
+    if (key === 'people') router.push('/');
+    if (key === 'follow-up') router.push('/follow-ups');
+  };
+
+  const handleLog = async () => {
+    if (!logText.trim()) return;
+    await createInteraction.mutateAsync({
+      contact_id: id,
+      type: logType.toLowerCase() as Interaction['type'],
+      date: new Date().toISOString(),
+      summary: logText || null,
+      outcome: logOutcome || null,
+      follow_up_date: null,
+    });
+    setLogText('');
+    setLogOutcome('');
+  };
+
+  const handleStatusChange = async (status: string) => {
     if (!contact) return;
-    if (confirm(`Delete ${contact.first_name} ${contact.last_name}?`)) {
-      await deleteContact.mutateAsync(contact.id);
-      router.push('/');
-    }
+    await updateContact.mutateAsync({
+      id: contact.id,
+      contact: { status: status as ContactInsert['status'] },
+    });
+  };
+
+  const handleFollowUpChange = async (date: string) => {
+    if (!contact) return;
+    await updateContact.mutateAsync({
+      id: contact.id,
+      contact: { follow_up_date: date || null },
+    });
   };
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 p-6">
-          <p className="text-gray-400">Loading...</p>
-        </main>
-      </div>
+      <Shell tabs={tabTabs} activeTab="record" onTabChange={handleTabChange} showFollowUpDot={followUpCount > 0}>
+        <div className="px-4 py-12 text-center text-[13px]" style={{ color: 'var(--fg-faint)' }}>
+          Loading...
+        </div>
+      </Shell>
     );
   }
 
   if (!contact) {
     return (
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 p-6">
-          <p className="text-gray-400">Contact not found</p>
-        </main>
-      </div>
+      <Shell tabs={tabTabs} activeTab="record" onTabChange={handleTabChange} showFollowUpDot={followUpCount > 0}>
+        <div className="px-4 py-12 text-center text-[13px]" style={{ color: 'var(--fg-faint)' }}>
+          Contact not found
+        </div>
+      </Shell>
     );
   }
 
+  const fullName = `${contact.first_name} ${contact.last_name || ''}`.trim();
+  const subtitle = [contact.role, contact.company_name].filter(Boolean).join(' \u00B7 ');
+  const touchCount = interactions?.length || 0;
+
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-6">
-        {/* Back link */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-4"
+    <Shell
+      tabs={tabTabs}
+      activeTab="record"
+      onTabChange={handleTabChange}
+      showFollowUpDot={followUpCount > 0}
+    >
+      <div className="px-4 py-3">
+        {/* Header */}
+        <div
+          className="flex items-center justify-between mb-4 pb-3"
+          style={{ borderBottom: '1px solid var(--border)' }}
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back to People
-        </Link>
-
-        <div className="grid grid-cols-3 gap-6">
-          {/* Left: Identity */}
-          <div className="col-span-1 space-y-4">
-            <div className="bg-white border rounded-xl p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h1 className="text-xl font-bold">
-                    {contact.first_name} {contact.last_name}
-                  </h1>
-                  {contact.role && (
-                    <p className="text-sm text-gray-500">{contact.role}</p>
-                  )}
-                  {contact.company_name && (
-                    <p className="text-sm text-gray-500">{contact.company_name}</p>
-                  )}
-                </div>
-                <StatusBadge status={contact.status} />
+          <div className="flex items-center gap-3">
+            <div
+              className="shrink-0 flex items-center justify-center rounded-full text-[14px] font-medium"
+              style={{
+                width: 42,
+                height: 42,
+                background: getAvatarColor(fullName),
+                color: '#fafafa',
+              }}
+            >
+              {getInitials(contact.first_name, contact.last_name)}
+            </div>
+            <div>
+              <div className="text-[16px] font-bold" style={{ color: 'var(--fg)' }}>
+                {fullName}
               </div>
-
-              {/* Tags */}
+              {subtitle && (
+                <div className="text-[12px]" style={{ color: 'var(--fg-muted)' }}>
+                  {subtitle}
+                </div>
+              )}
               {contact.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-4">
+                <div className="flex gap-1 mt-1">
                   {contact.tags.map((t) => (
                     <span
                       key={t.id}
-                      className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: t.color }}
+                      className="rounded-full"
+                      style={{
+                        height: 19,
+                        padding: '0 7px',
+                        fontSize: 10,
+                        fontWeight: 500,
+                        lineHeight: '19px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-muted)',
+                        color: 'var(--fg-muted)',
+                      }}
                     >
                       {t.label}
                     </span>
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {contact.email && (
+              <a
+                href={`mailto:${contact.email}`}
+                className="rounded-md text-[12px] font-medium flex items-center gap-1.5"
+                style={{
+                  height: 30,
+                  padding: '0 10px',
+                  border: '1px solid var(--border-med)',
+                  color: 'var(--fg)',
+                }}
+              >
+                <Mail size={13} /> Email
+              </a>
+            )}
+            <button
+              onClick={() => setShowInteractionModal(true)}
+              className="rounded-md text-[12px] font-medium"
+              style={{
+                height: 30,
+                padding: '0 10px',
+                border: '1px solid var(--border-med)',
+                color: 'var(--fg)',
+              }}
+            >
+              + Follow-Up
+            </button>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="rounded-md text-[12px] font-medium"
+              style={{
+                height: 30,
+                padding: '0 10px',
+                background: 'var(--fg)',
+                color: 'var(--bg)',
+              }}
+            >
+              Edit
+            </button>
+          </div>
+        </div>
 
-              {/* Contact Info */}
-              <div className="space-y-2 text-sm">
-                {contact.email && (
+        {/* 3-column layout */}
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: '188px 1fr 196px' }}
+        >
+          {/* Left: Contact info */}
+          <div>
+            <div
+              className="text-[10px] uppercase font-medium mb-3"
+              style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}
+            >
+              Contact info
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div style={fieldLabelStyle}>Status</div>
+                <div className="flex items-center gap-1.5">
+                  <StatusDot status={contact.status} />
+                  <span style={fieldValueStyle} className="capitalize">{contact.status}</span>
+                </div>
+              </div>
+              <div>
+                <div style={fieldLabelStyle}>Last contacted</div>
+                <div style={fieldValueStyle}>
+                  {contact.last_contacted_at
+                    ? formatDistanceToNow(new Date(contact.last_contacted_at), { addSuffix: true })
+                    : '--'}
+                </div>
+              </div>
+              <div>
+                <div style={fieldLabelStyle}>Follow-up</div>
+                <div className="flex items-center gap-1.5">
+                  {contact.follow_up_date && (
+                    <span
+                      className="inline-block rounded-full"
+                      style={{
+                        width: 6,
+                        height: 6,
+                        background:
+                          isPast(new Date(contact.follow_up_date)) && !isToday(new Date(contact.follow_up_date))
+                            ? '#ef4444'
+                            : isToday(new Date(contact.follow_up_date))
+                            ? '#ca8a04'
+                            : '#22c55e',
+                      }}
+                    />
+                  )}
+                  <span style={fieldValueStyle}>
+                    {contact.follow_up_date
+                      ? format(new Date(contact.follow_up_date), 'MMM d, yyyy')
+                      : '--'}
+                  </span>
+                </div>
+              </div>
+              {contact.email && (
+                <div>
+                  <div style={fieldLabelStyle}>Email</div>
                   <a
                     href={`mailto:${contact.email}`}
-                    className="flex items-center gap-2 text-gray-600 hover:text-blue-600"
+                    style={{ ...fieldValueStyle, color: 'var(--fg)' }}
+                    className="underline"
                   >
-                    <Mail className="w-4 h-4" />
                     {contact.email}
                   </a>
-                )}
-                {contact.phone && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Phone className="w-4 h-4" />
-                    {contact.phone}
-                  </div>
-                )}
-                {contact.linkedin_url && (
+                </div>
+              )}
+              {contact.phone && (
+                <div>
+                  <div style={fieldLabelStyle}>Phone</div>
+                  <div style={fieldValueStyle}>{contact.phone}</div>
+                </div>
+              )}
+              {contact.linkedin_url && (
+                <div>
+                  <div style={fieldLabelStyle}>LinkedIn</div>
                   <a
                     href={contact.linkedin_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-gray-600 hover:text-blue-600"
+                    style={{ ...fieldValueStyle, color: 'var(--fg)' }}
+                    className="underline"
                   >
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn Profile
+                    Profile
                   </a>
-                )}
-              </div>
-
-              {/* Meta */}
-              <div className="mt-4 pt-4 border-t space-y-1 text-xs text-gray-400">
-                {contact.source && <p>Source: {contact.source}</p>}
-                {contact.last_contacted_at && (
-                  <p>
-                    Last touch:{' '}
-                    {formatDistanceToNow(new Date(contact.last_contacted_at), {
-                      addSuffix: true,
-                    })}
-                  </p>
-                )}
-                {contact.follow_up_date && (
-                  <p>Follow-up: {format(new Date(contact.follow_up_date), 'MMM d, yyyy')}</p>
-                )}
-                <p>Added: {format(new Date(contact.created_at), 'MMM d, yyyy')}</p>
-              </div>
-
-              {/* Actions */}
-              <div className="mt-4 pt-4 border-t flex gap-2">
-                <button
-                  onClick={() => setShowEditModal(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-gray-50"
-                >
-                  <Pencil className="w-3 h-3" />
-                  Edit
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Delete
-                </button>
-              </div>
+                </div>
+              )}
+              {contact.source && (
+                <div>
+                  <div style={fieldLabelStyle}>Source</div>
+                  <div style={fieldValueStyle}>{contact.source}</div>
+                </div>
+              )}
+              {contact.notes && (
+                <div>
+                  <div style={fieldLabelStyle}>Notes</div>
+                  <div style={{ ...fieldValueStyle, whiteSpace: 'pre-wrap' }}>{contact.notes}</div>
+                </div>
+              )}
             </div>
-
-            {/* Notes */}
-            {contact.notes && (
-              <div className="bg-white border rounded-xl p-5">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Notes</h3>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{contact.notes}</p>
-              </div>
-            )}
           </div>
 
-          {/* Center: Timeline */}
-          <div className="col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Interactions</h2>
-              <button
-                onClick={() => setShowInteractionModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4" />
-                Log Interaction
-              </button>
+          {/* Center: Activity */}
+          <div className="flex flex-col min-h-0">
+            <div
+              className="text-[10px] uppercase font-medium mb-3"
+              style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}
+            >
+              Activity
             </div>
 
-            {!interactions || interactions.length === 0 ? (
-              <div className="bg-white border rounded-xl p-8 text-center text-gray-400">
-                <p>No interactions logged yet.</p>
-                <button
-                  onClick={() => setShowInteractionModal(true)}
-                  className="mt-2 text-blue-600 hover:underline text-sm"
+            {/* Activity feed */}
+            <div
+              className="flex-1 overflow-y-auto space-y-2 mb-3"
+              style={{ maxHeight: 'calc(100vh - 340px)' }}
+            >
+              {!interactions || interactions.length === 0 ? (
+                <div
+                  className="py-8 text-center text-[12px]"
+                  style={{ color: 'var(--fg-faint)' }}
                 >
-                  Log your first one
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {interactions.map((interaction: Interaction) => {
+                  No interactions logged yet.
+                </div>
+              ) : (
+                interactions.map((interaction: Interaction) => {
                   const Icon = interactionIcons[interaction.type] || Globe;
                   return (
-                    <div
-                      key={interaction.id}
-                      className="bg-white border rounded-xl p-4 flex gap-3"
-                    >
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                        <Icon className="w-4 h-4 text-gray-500" />
+                    <div key={interaction.id} className="flex gap-2.5 items-start">
+                      <div
+                        className="shrink-0 flex items-center justify-center rounded-full"
+                        style={{
+                          width: 24,
+                          height: 24,
+                          background: 'var(--bg-muted)',
+                        }}
+                      >
+                        <Icon size={12} style={{ color: 'var(--fg-muted)' }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium capitalize">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-medium capitalize" style={{ color: 'var(--fg)' }}>
                             {interaction.type}
                           </span>
-                          <span className="text-xs text-gray-400">
-                            {format(new Date(interaction.date), 'MMM d, yyyy · h:mm a')}
-                          </span>
+                          {interaction.outcome && (
+                            <span
+                              className="rounded-full text-[10px]"
+                              style={{
+                                padding: '0 6px',
+                                height: 17,
+                                lineHeight: '17px',
+                                background: 'var(--bg-muted)',
+                                color: 'var(--fg-muted)',
+                              }}
+                            >
+                              {interaction.outcome}
+                            </span>
+                          )}
                         </div>
                         {interaction.summary && (
-                          <p className="text-sm text-gray-700">{interaction.summary}</p>
+                          <div className="text-[12px] mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                            {interaction.summary}
+                          </div>
                         )}
-                        {interaction.outcome && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Outcome: {interaction.outcome}
-                          </p>
-                        )}
+                        <div className="text-[11px] mt-0.5" style={{ color: 'var(--fg-faint)' }}>
+                          {format(new Date(interaction.date), 'MMM d, yyyy')}
+                        </div>
                       </div>
                     </div>
                   );
-                })}
+                })
+              )}
+            </div>
+
+            {/* Inline log area */}
+            <div
+              className="pt-3"
+              style={{ borderTop: '1px solid var(--border)' }}
+            >
+              <div className="flex gap-1 mb-2">
+                {LOG_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setLogType(t)}
+                    className="rounded-full text-[11px] font-medium"
+                    style={{
+                      height: 24,
+                      padding: '0 10px',
+                      background: logType === t ? 'var(--fg)' : 'transparent',
+                      color: logType === t ? 'var(--bg)' : 'var(--fg-muted)',
+                      border: logType === t ? 'none' : '1px solid var(--border)',
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
-            )}
+              <textarea
+                value={logText}
+                onChange={(e) => setLogText(e.target.value)}
+                placeholder="Add a note..."
+                style={{
+                  width: '100%',
+                  height: 62,
+                  background: 'var(--bg-subtle)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '6px 10px',
+                  fontSize: 13,
+                  color: 'var(--fg)',
+                  resize: 'none',
+                }}
+              />
+              <div className="flex items-center justify-between mt-2">
+                <button
+                  onClick={() => setLogOutcome(logOutcome ? '' : 'positive')}
+                  className="text-[11px] font-medium"
+                  style={{
+                    height: 24,
+                    padding: '0 8px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    background: logOutcome ? 'var(--bg-muted)' : 'transparent',
+                    color: 'var(--fg-muted)',
+                  }}
+                >
+                  Set outcome
+                </button>
+                <button
+                  onClick={handleLog}
+                  disabled={!logText.trim() || createInteraction.isPending}
+                  className="rounded text-[12px] font-medium disabled:opacity-40"
+                  style={{
+                    height: 28,
+                    padding: '0 14px',
+                    background: 'var(--fg)',
+                    color: 'var(--bg)',
+                  }}
+                >
+                  Log
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Actions */}
+          <div>
+            <div
+              className="text-[10px] uppercase font-medium mb-3"
+              style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}
+            >
+              Actions
+            </div>
+            <div className="space-y-4">
+              {/* Follow-up date */}
+              <div>
+                <div style={fieldLabelStyle}>Follow-up date</div>
+                <input
+                  type="date"
+                  value={contact.follow_up_date || ''}
+                  onChange={(e) => handleFollowUpChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: 32,
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '0 8px',
+                    fontSize: 12,
+                    color: 'var(--fg)',
+                  }}
+                />
+              </div>
+
+              {/* Relationship status */}
+              <div>
+                <div style={fieldLabelStyle}>Relationship</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleStatusChange(s)}
+                      className="flex items-center gap-1.5 rounded text-[11px] font-medium capitalize"
+                      style={{
+                        height: 30,
+                        padding: '0 8px',
+                        border: '1px solid var(--border)',
+                        background: contact.status === s ? 'var(--bg-muted2)' : 'transparent',
+                        color: 'var(--fg)',
+                      }}
+                    >
+                      <span
+                        className="inline-block rounded-full"
+                        style={{
+                          width: 6,
+                          height: 6,
+                          background: statusDotColors[s],
+                        }}
+                      />
+                      {s === 'lead' ? 'Warm' : s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <div style={fieldLabelStyle}>Tags</div>
+                <div className="flex flex-wrap gap-1">
+                  {contact.tags.map((t) => (
+                    <span
+                      key={t.id}
+                      className="rounded-full"
+                      style={{
+                        height: 19,
+                        padding: '0 7px',
+                        fontSize: 10,
+                        fontWeight: 500,
+                        lineHeight: '19px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-muted)',
+                        color: 'var(--fg-muted)',
+                      }}
+                    >
+                      {t.label}
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="rounded-full text-[10px]"
+                    style={{
+                      height: 19,
+                      padding: '0 7px',
+                      lineHeight: '19px',
+                      border: '1px dashed var(--border-med)',
+                      color: 'var(--fg-faint)',
+                      background: 'transparent',
+                    }}
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Touches */}
+              <div>
+                <div style={fieldLabelStyle}>Touches</div>
+                <div className="text-[26px] font-bold" style={{ color: 'var(--fg)' }}>
+                  {touchCount}
+                </div>
+              </div>
+
+              {/* Reach out */}
+              <div>
+                <div style={fieldLabelStyle}>Reach out</div>
+                <div className="space-y-1.5">
+                  {contact.phone && (
+                    <a
+                      href={`tel:${contact.phone}`}
+                      className="flex items-center gap-2 rounded text-[12px] font-medium w-full"
+                      style={{
+                        height: 30,
+                        padding: '0 10px',
+                        border: '1px solid var(--border)',
+                        color: 'var(--fg)',
+                      }}
+                    >
+                      <Phone size={13} /> Call
+                    </a>
+                  )}
+                  {contact.email && (
+                    <a
+                      href={`mailto:${contact.email}`}
+                      className="flex items-center gap-2 rounded text-[12px] font-medium w-full"
+                      style={{
+                        height: 30,
+                        padding: '0 10px',
+                        border: '1px solid var(--border)',
+                        color: 'var(--fg)',
+                      }}
+                    >
+                      <Mail size={13} /> Email
+                    </a>
+                  )}
+                  {contact.linkedin_url && (
+                    <a
+                      href={contact.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded text-[12px] font-medium w-full"
+                      style={{
+                        height: 30,
+                        padding: '0 10px',
+                        border: '1px solid var(--border)',
+                        color: 'var(--fg)',
+                      }}
+                    >
+                      <Linkedin size={13} /> LinkedIn
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        {showEditModal && (
-          <ContactModal contact={contact} onClose={() => setShowEditModal(false)} />
-        )}
-        {showInteractionModal && (
-          <InteractionModal
-            contactId={contact.id}
-            onClose={() => setShowInteractionModal(false)}
-          />
-        )}
-      </main>
-    </div>
+      {showEditModal && (
+        <ContactModal contact={contact} onClose={() => setShowEditModal(false)} />
+      )}
+      {showInteractionModal && (
+        <InteractionModal
+          contactId={contact.id}
+          onClose={() => setShowInteractionModal(false)}
+        />
+      )}
+    </Shell>
   );
 }

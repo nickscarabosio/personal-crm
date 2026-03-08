@@ -1,109 +1,310 @@
 'use client';
 
-import Link from 'next/link';
+import { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { format, isPast, isToday } from 'date-fns';
-import { Sidebar } from '@/components/sidebar';
-import { StatusBadge } from '@/components/status-badge';
-import { useContacts } from '@/hooks/use-contacts';
+import { Shell } from '@/components/shell';
+import { useContacts, useUpdateContact } from '@/hooks/use-contacts';
+import type { ContactWithTags } from '@/types/database';
+
+const AVATAR_COLORS = ['#3f3f46', '#52525b', '#71717a', '#27272a', '#18181b'];
+
+function getAvatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function getInitials(first: string, last?: string | null) {
+  return (first[0] + (last?.[0] || '')).toUpperCase();
+}
 
 export default function FollowUps() {
+  const router = useRouter();
   const { data: contacts, isLoading } = useContacts({ followUpOnly: true });
+  const { data: allContacts } = useContacts({});
+  const updateContact = useUpdateContact();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
-  const overdue = contacts?.filter(
-    (c) => c.follow_up_date && isPast(new Date(c.follow_up_date)) && !isToday(new Date(c.follow_up_date))
+  const followUpCount = useMemo(() => {
+    if (!allContacts) return 0;
+    return allContacts.filter(
+      (c) => c.follow_up_date && (isPast(new Date(c.follow_up_date)) || isToday(new Date(c.follow_up_date)))
+    ).length;
+  }, [allContacts]);
+
+  const overdue = useMemo(
+    () =>
+      contacts?.filter(
+        (c) =>
+          c.follow_up_date &&
+          isPast(new Date(c.follow_up_date)) &&
+          !isToday(new Date(c.follow_up_date)) &&
+          !dismissed.has(c.id)
+      ) || [],
+    [contacts, dismissed]
   );
-  const today = contacts?.filter(
-    (c) => c.follow_up_date && isToday(new Date(c.follow_up_date))
+  const today = useMemo(
+    () =>
+      contacts?.filter(
+        (c) =>
+          c.follow_up_date &&
+          isToday(new Date(c.follow_up_date)) &&
+          !dismissed.has(c.id)
+      ) || [],
+    [contacts, dismissed]
   );
-  const upcoming = contacts?.filter(
-    (c) =>
-      c.follow_up_date &&
-      !isPast(new Date(c.follow_up_date)) &&
-      !isToday(new Date(c.follow_up_date))
+  const upcoming = useMemo(
+    () =>
+      contacts?.filter(
+        (c) =>
+          c.follow_up_date &&
+          !isPast(new Date(c.follow_up_date)) &&
+          !isToday(new Date(c.follow_up_date)) &&
+          !dismissed.has(c.id)
+      ) || [],
+    [contacts, dismissed]
   );
 
-  const Section = ({
-    title,
-    items,
-    color,
+  const handleDone = useCallback(
+    async (c: ContactWithTags) => {
+      setDismissed((prev) => new Set(prev).add(c.id));
+      await updateContact.mutateAsync({
+        id: c.id,
+        contact: { follow_up_date: null },
+      });
+    },
+    [updateContact]
+  );
+
+  const handleSnooze = useCallback(
+    async (c: ContactWithTags) => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      await updateContact.mutateAsync({
+        id: c.id,
+        contact: { follow_up_date: tomorrow.toISOString().split('T')[0] },
+      });
+    },
+    [updateContact]
+  );
+
+  const tabTabs = [
+    { key: 'people', label: 'People', badge: allContacts?.length || 0 },
+    { key: 'follow-up', label: 'Follow-Up', badge: followUpCount, alert: followUpCount > 0 },
+    { key: 'record', label: 'Record' },
+    { key: 'companies', label: 'Companies' },
+    { key: 'activity', label: 'Activity' },
+  ];
+
+  const handleTabChange = (key: string) => {
+    if (key === 'people') router.push('/');
+  };
+
+  const QueueCard = ({
+    contact,
+    accentColor,
   }: {
-    title: string;
-    items: typeof contacts;
-    color: string;
+    contact: ContactWithTags;
+    accentColor: string;
   }) => {
-    if (!items || items.length === 0) return null;
+    const fullName = `${contact.first_name} ${contact.last_name || ''}`.trim();
+    const context = [contact.role, contact.company_name].filter(Boolean).join(' at ');
+    const dueDate = contact.follow_up_date
+      ? isPast(new Date(contact.follow_up_date)) && !isToday(new Date(contact.follow_up_date))
+        ? `Overdue - ${format(new Date(contact.follow_up_date), 'MMM d')}`
+        : isToday(new Date(contact.follow_up_date))
+        ? 'Due today'
+        : format(new Date(contact.follow_up_date), 'MMM d')
+      : '';
+
     return (
-      <div className="mb-6">
-        <h2 className={`text-sm font-semibold mb-3 ${color}`}>
-          {title} ({items.length})
-        </h2>
-        <div className="space-y-2">
-          {items.map((c) => (
-            <Link
-              key={c.id}
-              href={`/contacts/${c.id}`}
-              className="flex items-center justify-between bg-white border rounded-xl p-4 hover:border-blue-300 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {c.first_name} {c.last_name}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {c.role ? `${c.role}${c.company_name ? ` at ${c.company_name}` : ''}` : c.company_name || ''}
-                  </p>
-                </div>
-                <StatusBadge status={c.status} />
-                <div className="flex gap-1">
-                  {c.tags.map((t) => (
-                    <span
-                      key={t.id}
-                      className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: t.color }}
-                    >
-                      {t.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <span
-                className={`text-sm font-medium ${
-                  c.follow_up_date && isPast(new Date(c.follow_up_date)) && !isToday(new Date(c.follow_up_date))
-                    ? 'text-red-600'
-                    : isToday(new Date(c.follow_up_date!))
-                    ? 'text-amber-600'
-                    : 'text-gray-500'
-                }`}
-              >
-                {format(new Date(c.follow_up_date!), 'MMM d')}
-              </span>
-            </Link>
-          ))}
+      <div
+        className="flex items-center gap-3 cursor-pointer"
+        style={{
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          borderLeft: `2px solid ${accentColor}`,
+          padding: '10px 12px',
+          boxShadow: 'var(--shadow)',
+          background: 'var(--bg)',
+        }}
+        onClick={() => router.push(`/contacts/${contact.id}`)}
+      >
+        <div
+          className="shrink-0 flex items-center justify-center rounded-full text-[10px] font-medium"
+          style={{
+            width: 32,
+            height: 32,
+            background: getAvatarColor(fullName),
+            color: '#fafafa',
+          }}
+        >
+          {getInitials(contact.first_name, contact.last_name)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>
+            {fullName}
+          </div>
+          {context && (
+            <div className="text-[11px] truncate" style={{ color: 'var(--fg-muted)' }}>
+              {context}
+            </div>
+          )}
+          <div className="text-[11px]" style={{ color: 'var(--fg-faint)' }}>
+            {dueDate}
+          </div>
+        </div>
+        <div
+          className="flex items-center gap-1.5 shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleDone(contact)}
+            className="rounded text-[11px] font-medium"
+            style={{
+              height: 24,
+              padding: '0 8px',
+              border: '1px solid var(--border-med)',
+              background: 'var(--bg)',
+              color: 'var(--fg)',
+            }}
+          >
+            Done
+          </button>
+          <button
+            onClick={() => handleSnooze(contact)}
+            className="rounded text-[11px] font-medium"
+            style={{
+              height: 24,
+              padding: '0 8px',
+              background: 'transparent',
+              color: 'var(--fg-muted)',
+            }}
+          >
+            Snooze
+          </button>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-6">
-        <h1 className="text-2xl font-bold mb-6">Follow-Ups</h1>
-
+    <Shell
+      tabs={tabTabs}
+      activeTab="follow-up"
+      onTabChange={handleTabChange}
+      showFollowUpDot={followUpCount > 0}
+    >
+      <div className="px-4 py-3">
         {isLoading ? (
-          <p className="text-gray-400">Loading...</p>
-        ) : contacts?.length === 0 ? (
-          <div className="bg-white border rounded-xl p-8 text-center text-gray-400">
+          <div className="py-12 text-center text-[13px]" style={{ color: 'var(--fg-faint)' }}>
+            Loading...
+          </div>
+        ) : !contacts || contacts.length === 0 ? (
+          <div
+            className="py-12 text-center text-[13px]"
+            style={{
+              color: 'var(--fg-faint)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              background: 'var(--bg)',
+            }}
+          >
             No follow-ups scheduled. You&apos;re all caught up.
           </div>
         ) : (
           <>
-            <Section title="Overdue" items={overdue} color="text-red-600" />
-            <Section title="Today" items={today} color="text-amber-600" />
-            <Section title="Upcoming" items={upcoming} color="text-gray-500" />
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <div
+                className="rounded-lg p-3"
+                style={{ border: '1px solid var(--border)', background: 'var(--bg)' }}
+              >
+                <div className="text-[26px] font-bold" style={{ color: '#ef4444' }}>
+                  {overdue.length}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>
+                  Overdue
+                </div>
+              </div>
+              <div
+                className="rounded-lg p-3"
+                style={{ border: '1px solid var(--border)', background: 'var(--bg)' }}
+              >
+                <div className="text-[26px] font-bold" style={{ color: '#ca8a04' }}>
+                  {today.length}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>
+                  Today
+                </div>
+              </div>
+              <div
+                className="rounded-lg p-3"
+                style={{ border: '1px solid var(--border)', background: 'var(--bg)' }}
+              >
+                <div className="text-[26px] font-bold" style={{ color: '#22c55e' }}>
+                  {upcoming.length}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>
+                  This week
+                </div>
+              </div>
+            </div>
+
+            {/* Overdue */}
+            {overdue.length > 0 && (
+              <div className="mb-4">
+                <div
+                  className="text-[10px] uppercase font-medium mb-2"
+                  style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}
+                >
+                  Overdue
+                </div>
+                <div className="space-y-2">
+                  {overdue.map((c) => (
+                    <QueueCard key={c.id} contact={c} accentColor="#ef4444" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Today */}
+            {today.length > 0 && (
+              <div className="mb-4">
+                <div
+                  className="text-[10px] uppercase font-medium mb-2"
+                  style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}
+                >
+                  Today
+                </div>
+                <div className="space-y-2">
+                  {today.map((c) => (
+                    <QueueCard key={c.id} contact={c} accentColor="#ca8a04" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* This week */}
+            {upcoming.length > 0 && (
+              <div className="mb-4">
+                <div
+                  className="text-[10px] uppercase font-medium mb-2"
+                  style={{ letterSpacing: '0.6px', color: 'var(--fg-faint)' }}
+                >
+                  This week
+                </div>
+                <div className="space-y-2">
+                  {upcoming.map((c) => (
+                    <QueueCard key={c.id} contact={c} accentColor="#22c55e" />
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </Shell>
   );
 }
