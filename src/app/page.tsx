@@ -18,6 +18,7 @@ import type { ContactWithTags } from '@/types/database';
 import { isDormantRisk } from '@/lib/dormancy';
 import { calculateWarmthScore, getScoreColor } from '@/lib/scoring';
 import { useInteractionCounts } from '@/hooks/use-interaction-counts';
+import { usePipelineStages } from '@/hooks/use-pipeline';
 import {
   type SortingState,
   type ColumnFiltersState,
@@ -89,6 +90,8 @@ export default function PeopleBoard() {
   const { data: contacts, isLoading } = useContacts({ search, status: statusFilter });
   const { data: tags } = useTags();
   const { data: interactionCounts } = useInteractionCounts();
+  const { data: pipelineStages } = usePipelineStages();
+  const stageMap = useMemo(() => Object.fromEntries((pipelineStages || []).map((s) => [s.id, s])), [pipelineStages]);
 
   const { data: allContacts } = useContacts({});
   const followUpCount = useMemo(() => {
@@ -223,6 +226,21 @@ export default function PeopleBoard() {
           </div>
         ),
         enableSorting: false,
+      },
+      {
+        accessorKey: 'stage',
+        accessorFn: (row) => stageMap[row.pipeline_stage_id || '']?.label || '',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Stage" />,
+        cell: ({ row }) => {
+          const s = stageMap[row.original.pipeline_stage_id || ''];
+          if (!s) return <span style={{ fontSize: 11, color: 'var(--fg-faint)' }}>--</span>;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{s.label}</span>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'lastTouch',

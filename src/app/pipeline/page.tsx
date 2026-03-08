@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shell } from '@/components/shell';
 import { useContacts } from '@/hooks/use-contacts';
@@ -20,20 +20,35 @@ function getInitials(first: string, last?: string | null) {
 
 function ContactCard({
   contact,
+  stages,
   onDragStart,
+  onMove,
 }: {
   contact: ContactWithTags;
+  stages: PipelineStage[];
   onDragStart: (e: React.DragEvent, id: string) => void;
+  onMove: (contactId: string, stageId: string) => void;
 }) {
   const router = useRouter();
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const fullName = `${contact.first_name} ${contact.last_name || ''}`.trim();
   const context = [contact.role, contact.company_name].filter(Boolean).join(' · ');
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMenu]);
 
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, contact.id)}
-      onClick={() => router.push(`/contacts/${contact.id}`)}
       className="cursor-grab active:cursor-grabbing"
       style={{
         padding: '8px 10px',
@@ -42,9 +57,14 @@ function ContactCard({
         background: 'var(--bg)',
         boxShadow: '0 1px 3px rgba(0,0,0,.06)',
         marginBottom: 6,
+        position: 'relative',
       }}
     >
-      <div className="flex items-center gap-2">
+      <div
+        className="flex items-center gap-2"
+        onClick={() => router.push(`/contacts/${contact.id}`)}
+        style={{ cursor: 'pointer' }}
+      >
         <div
           className="shrink-0 flex items-center justify-center rounded-full text-[9px] font-medium"
           style={{ width: 24, height: 24, background: getAvatarColor(fullName), color: '#fafafa' }}
@@ -67,6 +87,67 @@ function ContactCard({
           {contact.goal}
         </div>
       )}
+      {/* Move to stage button */}
+      <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid var(--border)' }} ref={menuRef}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
+          className="text-[10px] font-medium w-full text-left"
+          style={{
+            padding: '2px 6px',
+            borderRadius: 4,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-subtle)',
+            color: 'var(--fg-muted)',
+            cursor: 'pointer',
+          }}
+        >
+          Move to →
+        </button>
+        {showMenu && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 6,
+              right: 6,
+              bottom: '100%',
+              marginBottom: 2,
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+              zIndex: 50,
+              maxHeight: 220,
+              overflowY: 'auto',
+            }}
+          >
+            {stages.map((s) => (
+              <button
+                key={s.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMove(contact.id, s.id);
+                  setShowMenu(false);
+                }}
+                disabled={s.id === contact.pipeline_stage_id}
+                className="w-full text-left flex items-center gap-2 text-[11px]"
+                style={{
+                  padding: '6px 8px',
+                  color: s.id === contact.pipeline_stage_id ? 'var(--fg-faint)' : 'var(--fg)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: s.id === contact.pipeline_stage_id ? 'default' : 'pointer',
+                }}
+                onMouseEnter={(e) => { if (s.id !== contact.pipeline_stage_id) e.currentTarget.style.background = 'var(--bg-subtle)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span className="inline-block rounded-full" style={{ width: 6, height: 6, background: s.color, flexShrink: 0 }} />
+                {s.label}
+                <span className="text-[9px] ml-auto" style={{ color: 'var(--fg-faint)' }}>{s.weight}%</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -74,15 +155,19 @@ function ContactCard({
 function StageColumn({
   stage,
   contacts,
+  allStages,
   onDragStart,
   onDrop,
+  onMoveContact,
   dragOver,
   setDragOver,
 }: {
   stage: PipelineStage;
   contacts: ContactWithTags[];
+  allStages: PipelineStage[];
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDrop: (stageId: string) => void;
+  onMoveContact: (contactId: string, stageId: string) => void;
   dragOver: string | null;
   setDragOver: (id: string | null) => void;
 }) {
@@ -143,7 +228,7 @@ function StageColumn({
           </div>
         ) : (
           contacts.map((c) => (
-            <ContactCard key={c.id} contact={c} onDragStart={onDragStart} />
+            <ContactCard key={c.id} contact={c} stages={allStages} onDragStart={onDragStart} onMove={onMoveContact} />
           ))
         )}
       </div>
@@ -277,7 +362,7 @@ export default function PipelinePage() {
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
                 {grouped['__unassigned'].map((c) => (
-                  <ContactCard key={c.id} contact={c} onDragStart={handleDragStart} />
+                  <ContactCard key={c.id} contact={c} stages={stages || []} onDragStart={handleDragStart} onMove={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })} />
                 ))}
               </div>
             </div>
@@ -288,8 +373,10 @@ export default function PipelinePage() {
               key={stage.id}
               stage={stage}
               contacts={grouped[stage.id] || []}
+              allStages={stages || []}
               onDragStart={handleDragStart}
               onDrop={handleDrop}
+              onMoveContact={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })}
               dragOver={dragOver}
               setDragOver={setDragOver}
             />
@@ -303,8 +390,10 @@ export default function PipelinePage() {
                   key={stage.id}
                   stage={stage}
                   contacts={grouped[stage.id] || []}
+                  allStages={stages || []}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}
+                  onMoveContact={(cId, sId) => moveContact.mutateAsync({ contactId: cId, stageId: sId })}
                   dragOver={dragOver}
                   setDragOver={setDragOver}
                 />
