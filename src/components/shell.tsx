@@ -104,7 +104,13 @@ export function Shell({
       </main>
       <BottomNav
         active={activeTab}
-        onChange={onTabChange}
+        onChange={(key) => {
+          if (key === 'pipeline') {
+            window.location.href = '/pipeline';
+          } else {
+            onTabChange(key);
+          }
+        }}
         showFollowUpDot={showFollowUpDot}
       />
       {paletteOpen && (

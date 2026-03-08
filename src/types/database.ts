@@ -49,11 +49,12 @@ export type Contact = {
   follow_up_note: string | null;
   goal: string | null;
   goal_target_date: string | null;
+  pipeline_stage_id: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ContactInsert = Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'goal' | 'goal_target_date' | 'follow_up_type' | 'follow_up_note'> & {
+export type ContactInsert = Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'goal' | 'goal_target_date' | 'follow_up_type' | 'follow_up_note' | 'pipeline_stage_id'> & {
   id?: string;
   created_at?: string;
   updated_at?: string;
@@ -61,6 +62,7 @@ export type ContactInsert = Omit<Contact, 'id' | 'created_at' | 'updated_at' | '
   goal_target_date?: string | null;
   follow_up_type?: string | null;
   follow_up_note?: string | null;
+  pipeline_stage_id?: string | null;
 };
 
 export type ContactUpdate = Partial<ContactInsert>;
@@ -134,3 +136,12 @@ export type MilestoneInsert = Omit<Milestone, 'id' | 'created_at' | 'completed_a
 };
 
 export type MilestoneUpdate = Partial<MilestoneInsert>;
+
+export type PipelineStage = {
+  id: string;
+  label: string;
+  weight: number;
+  sort_order: number;
+  color: string;
+  created_at: string;
+};

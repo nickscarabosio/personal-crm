@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   LogOut,
+  Kanban,
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
 import { useProfile } from '@/hooks/use-profile';
@@ -40,6 +41,7 @@ const navGroups: NavGroup[] = [
     label: 'People',
     items: [
       { key: 'people', label: 'People', icon: Users, href: '/' },
+      { key: 'pipeline', label: 'Pipeline', icon: Kanban, href: '/pipeline' },
       { key: 'companies', label: 'Companies', icon: Building2, href: '/companies' },
     ],
   },
