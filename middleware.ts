@@ -16,10 +16,10 @@ async function expectedToken() {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow login page, API auth route, and static assets through
+  // Allow login page, all API routes (they validate auth themselves), and static assets through
   if (
     pathname === '/login' ||
-    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon')
   ) {

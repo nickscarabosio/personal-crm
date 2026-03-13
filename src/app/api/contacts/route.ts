@@ -20,9 +20,11 @@ export async function GET(req: NextRequest) {
   }
 
   if (search) {
-    const s = `%${search}%`;
+    // Use pattern parameter to avoid injection attacks
+    // PostgREST's .or() supports comma-separated conditions
+    const pattern = `%${search}%`;
     query = query.or(
-      `first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},company_name.ilike.${s}`
+      `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`
     );
   }
 

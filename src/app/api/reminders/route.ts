@@ -40,12 +40,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // Also log as an interaction for audit trail
+  // Log as an internal note (audit trail only, does not affect dormancy tracking)
+  // Using 'internal_note' type ensures this doesn't count as customer contact
   const { data: interaction, error: interactionError } = await supabase
     .from('interactions')
     .insert({
       contact_id: body.dealId,
-      type: 'note',
+      type: 'internal_note',
       date: new Date().toISOString(),
       summary: `Reminder set: ${body.title} (due ${body.dueDate})`,
       follow_up_date: body.dueDate,
